@@ -92,7 +92,8 @@ export default function PonchieDojo() {
   const [timeLeft, setTimeLeft] = useState(TIME_LIMIT_TRAINING);
   const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
   const [history, setHistory] = useState<string[]>([]);
-  // saveImage state removed here
+  // 保存失敗時などに表示するための画像データ
+  const [saveImage, setSaveImage] = useState<string | null>(null);
   
   // モード管理 ('training' | 'free')
   const [gameMode, setGameMode] = useState<'training' | 'free'>('training');
@@ -209,7 +210,7 @@ export default function PonchieDojo() {
   const returnToTitle = () => {
     setGameState('title');
     setPenMode(false); 
-    // setSaveImage(null); removed
+    setSaveImage(null);
   };
 
   // キャンバスのリセット
@@ -329,20 +330,45 @@ export default function PonchieDojo() {
     } catch (err) {}
   };
 
-  // 画像保存処理（強化版）
+  // 画像保存処理（究極版）
   const downloadDrawing = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    try {
+      // 1. Web Share API (iPad/iPhoneの共有シート呼び出し)
+      // canvas.toBlobは非同期なのでPromiseでラップして確実にBlob化
+      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+      
+      if (blob && navigator.share && navigator.canShare) {
+        const file = new File([blob], `ponchie-${Date.now()}.png`, { type: 'image/png' });
+        const shareData = { files: [file] };
+
+        // ファイル共有がサポートされているか確認
+        if (navigator.canShare(shareData)) {
+          await navigator.share(shareData);
+          return; // 共有成功したら終了
+        }
+      }
+    } catch (err) {
+      // ユーザーが共有シートを閉じた場合などはエラーになるが無視
+      console.log('Share canceled or failed', err);
+    }
+
+    // 2. PC用ダウンロード（iPad PWAでは機能しないことが多いが念のため）
     const dataUrl = canvas.toDataURL('image/png');
-    
-    // ダウンロードリンクを生成してクリック（PCおよびiPadのブラウザ用）
     const link = document.createElement('a');
     link.download = `ponchie-${Date.now()}.png`;
     link.href = dataUrl;
+    // リンクをクリックしたとみなす
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+
+    // 3. 最終手段: 画像保存用モーダルを表示
+    // 共有も自動ダウンロードも失敗した場合（またはiPad PWAの場合）、
+    // ユーザーに画像を提示して手動保存を促す
+    setSaveImage(dataUrl);
   };
 
   // --- UIコンポーネント ---
@@ -558,6 +584,39 @@ export default function PonchieDojo() {
             </button>
           </div>
         </div>
+
+        {/* 画像保存用モーダル（iPad PWA対応・スタイル強制上書き） */}
+        {saveImage && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setSaveImage(null)}>
+            <div className="bg-white p-4 rounded-2xl max-w-lg w-full relative" onClick={e => e.stopPropagation()}>
+              <button 
+                onClick={() => setSaveImage(null)}
+                className="absolute -top-3 -right-3 bg-stone-800 text-white p-2 rounded-full shadow-lg hover:bg-stone-700"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              <h3 className="text-center font-bold text-lg mb-2">画像を保存</h3>
+              <p className="text-center text-sm text-stone-500 mb-4">
+                画像を長押しして「写真に保存」を選択してください
+              </p>
+              
+              {/* 【重要】CSSでのタッチ無効化を、この画像だけ強制的に解除する */}
+              {/* refコールバックを使って確実にスタイルを適用する */}
+              <img 
+                src={saveImage} 
+                alt="保存用画像" 
+                className="w-full h-auto rounded-lg shadow-inner border border-stone-200"
+                style={{ 
+                  WebkitTouchCallout: 'default', 
+                  WebkitUserSelect: 'auto',
+                  userSelect: 'auto',
+                  pointerEvents: 'auto',
+                  touchAction: 'auto'
+                }}
+              />
+            </div>
+          </div>
+        )}
       </div>
     );
   }
