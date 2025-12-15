@@ -92,7 +92,7 @@ export default function PonchieDojo() {
   const [timeLeft, setTimeLeft] = useState(TIME_LIMIT_TRAINING);
   const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
   const [history, setHistory] = useState<string[]>([]);
-  const [saveImage, setSaveImage] = useState<string | null>(null);
+  // saveImage state removed here
   
   // モード管理 ('training' | 'free')
   const [gameMode, setGameMode] = useState<'training' | 'free'>('training');
@@ -209,7 +209,7 @@ export default function PonchieDojo() {
   const returnToTitle = () => {
     setGameState('title');
     setPenMode(false); 
-    setSaveImage(null);
+    // setSaveImage(null); removed
   };
 
   // キャンバスのリセット
