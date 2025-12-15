@@ -49,7 +49,7 @@ const LOCATIONS_ACTION: WordPart[] = [
   { ja: '古い図書館で', en: 'in an old library' },
   { ja: '屋上で', en: 'on a building rooftop' },
   { ja: '電車の中で', en: 'inside a train' },
-  { ja: '', en: 'simple background' }, // 場所指定なし
+  { ja: '', en: 'simple background' },
 ];
 
 // 物テーマ用パーツ
@@ -89,7 +89,7 @@ const LOCATIONS_OBJECT: WordPart[] = [
   { ja: '空中に', en: 'in the sky' },
   { ja: '美術館に', en: 'in a museum' },
   { ja: '洞窟に', en: 'in a dark cave' },
-  { ja: '', en: 'studio lighting, plain background' }, // 場所指定なし
+  { ja: '', en: 'studio lighting, plain background' },
 ];
 
 interface Theme {
@@ -108,14 +108,41 @@ export default function PonchieDojo() {
   const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
   const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
   const [imgError, setImgError] = useState(false);
-
   const [turnCount, setTurnCount] = useState(0);
-  
-  // 履歴管理（直近10件のタイトルを保存して重複を避ける簡易的な仕組み）
   const [history, setHistory] = useState<string[]>([]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
+
+  // --- 追加修正: iPad PWA対応の強力なイベント制御 ---
+  useEffect(() => {
+    // 描画モードでない、またはキャンバスがない場合はスキップ
+    if (gameState !== 'drawing' || !canvasRef.current) return;
+
+    const canvas = canvasRef.current;
+
+    // ブラウザのデフォルト動作（スクロールなど）を完全に止める関数
+    const preventDefault = (e: TouchEvent) => {
+      e.preventDefault();
+    };
+
+    // Reactのイベントシステムではなく、直接DOMにリスナーを登録する
+    // { passive: false } が重要で、これにより「スクロールさせない」命令が有効になる
+    canvas.addEventListener('touchstart', preventDefault, { passive: false });
+    canvas.addEventListener('touchmove', preventDefault, { passive: false });
+    canvas.addEventListener('touchend', preventDefault, { passive: false });
+    canvas.addEventListener('gesturestart', preventDefault as any); // ピンチズームなども防止
+
+    return () => {
+      // クリーンアップ
+      if (canvas) {
+        canvas.removeEventListener('touchstart', preventDefault);
+        canvas.removeEventListener('touchmove', preventDefault);
+        canvas.removeEventListener('touchend', preventDefault);
+        canvas.removeEventListener('gesturestart', preventDefault as any);
+      }
+    };
+  }, [gameState]); // gameStateが変わるたびに再設定
 
   // カウントダウンタイマー
   useEffect(() => {
@@ -130,82 +157,56 @@ export default function PonchieDojo() {
     return () => clearInterval(timer);
   }, [gameState, timeLeft]);
 
-  // ランダムな要素を取得するヘルパー関数
+  // ランダムな要素を取得
   const getRandom = (arr: WordPart[]) => arr[Math.floor(Math.random() * arr.length)];
 
   // テーマ生成ロジック
   const generateTheme = useCallback((): Theme => {
-    const isActionTurn = (turnCount + 1) % 2 === 0; // 偶数回目はAction
+    const isActionTurn = (turnCount + 1) % 2 === 0;
     let title = '';
     let prompt = '';
     let category: ThemeCategory = 'object';
 
-    // 重複を避けるためのループ（最大5回試行）
     for (let i = 0; i < 5; i++) {
       if (isActionTurn) {
-        // Action: 場所 + 主語 + 動作
-        // 日本語: 「公園で」「本を読んでいる」「少女」
-        // 英語: young girl, reading a book, in a park...
         const loc = getRandom(LOCATIONS_ACTION);
         const sub = getRandom(SUBJECTS);
         const act = getRandom(ACTIONS);
-        
-        // 日本語タイトルの組み立て（場所があれば先頭に）
         title = `${loc.ja}${act.ja}${sub.ja}`;
         prompt = `${sub.en}, ${act.en}, ${loc.en}, photorealistic, detailed`;
         category = 'action';
       } else {
-        // Object: 場所 + 形容詞 + 物
-        // 日本語: 「机の上に」「古い」「時計」
-        // 英語: antique, clock, on a wooden desk...
         const loc = getRandom(LOCATIONS_OBJECT);
         const adj = getRandom(ADJECTIVES);
         const obj = getRandom(OBJECTS);
-
-        // 日本語タイトルの組み立て
         title = `${loc.ja}${adj.ja}${obj.ja}`;
         prompt = `${adj.en} ${obj.en}, ${loc.en}, photorealistic, 8k resolution, still life`;
         category = 'object';
       }
-
-      // 履歴になければ採用
-      if (!history.includes(title)) {
-        break;
-      }
+      if (!history.includes(title)) break;
     }
 
-    // 履歴更新
     setHistory(prev => {
       const newHistory = [title, ...prev];
-      if (newHistory.length > 20) newHistory.pop(); // 最大20件保持
+      if (newHistory.length > 20) newHistory.pop();
       return newHistory;
     });
 
-    return {
-      id: Date.now().toString(), // ユニークID
-      title,
-      prompt,
-      category
-    };
-
+    return { id: Date.now().toString(), title, prompt, category };
   }, [turnCount, history]);
 
   // ゲーム開始処理
   const startGame = () => {
     setGameState('generating');
     setImgError(false);
-
-    // 次のテーマを生成
     setTurnCount(prev => prev + 1);
     const nextTheme = generateTheme();
     setCurrentTheme(nextTheme);
 
-    // AI画像生成URLを作成 (Pollinations.aiを使用)
     const seed = Math.floor(Math.random() * 100000);
     const generatedUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(nextTheme.prompt)}?width=800&height=600&nologo=true&seed=${seed}&model=flux`;
     setCurrentImageUrl(generatedUrl);
     
-    // 画像のプリロード
     const img = new Image();
     img.src = generatedUrl;
     
@@ -215,7 +216,6 @@ export default function PonchieDojo() {
     img.onload = () => {
       const elapsed = Date.now() - startTime;
       const remaining = Math.max(0, minWaitTime - elapsed);
-      
       setTimeout(() => {
         setGameState('drawing');
         setTimeLeft(TIME_LIMIT);
@@ -259,14 +259,11 @@ export default function PonchieDojo() {
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
-
         const tempCanvas = document.createElement('canvas');
         const tempCtx = tempCanvas.getContext('2d');
         tempCanvas.width = canvas.width;
         tempCanvas.height = canvas.height;
-        if (tempCtx) {
-          tempCtx.drawImage(canvas, 0, 0);
-        }
+        if (tempCtx) tempCtx.drawImage(canvas, 0, 0);
 
         const parent = canvas.parentElement;
         if (parent) {
@@ -283,7 +280,6 @@ export default function PonchieDojo() {
   }, [gameState]);
 
   // --- 描画ロジック ---
-  
   const getCoordinates = (event: React.PointerEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current) return { x: 0, y: 0 };
     const canvas = canvasRef.current;
@@ -295,7 +291,8 @@ export default function PonchieDojo() {
   };
 
   const startDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
+    // 念のためここでもpreventDefault
+    e.preventDefault(); 
     (e.target as Element).setPointerCapture(e.pointerId);
     isDrawingRef.current = true;
     const { x, y } = getCoordinates(e);
@@ -305,7 +302,7 @@ export default function PonchieDojo() {
       ctx.moveTo(x, y);
       ctx.lineWidth = tool === 'pen' ? 4 : 20;
       ctx.strokeStyle = tool === 'pen' ? '#1a1a1a' : '#ffffff';
-      ctx.lineTo(x, y);
+      ctx.lineTo(x, y); // 点を描画
       ctx.stroke();
     }
   };
@@ -316,6 +313,8 @@ export default function PonchieDojo() {
     const { x, y } = getCoordinates(e);
     const ctx = canvasRef.current?.getContext('2d');
     if (ctx) {
+      // 補間処理（ポインターの動きが速い場合に線を滑らかにする）
+      // 今回はシンプルにlineToで実装
       ctx.lineTo(x, y);
       ctx.stroke();
     }
@@ -347,7 +346,7 @@ export default function PonchieDojo() {
 
   if (gameState === 'title') {
     return (
-      <div className="min-h-screen bg-stone-100 flex flex-col items-center justify-center p-6 text-stone-800 font-sans">
+      <div className="min-h-screen bg-stone-100 flex flex-col items-center justify-center p-6 text-stone-800 font-sans select-none">
         <div className="bg-white p-12 rounded-3xl shadow-xl flex flex-col items-center max-w-lg w-full text-center border-4 border-stone-800">
           <div className="w-24 h-24 bg-stone-800 rounded-full flex items-center justify-center mb-6">
             <Pencil className="w-12 h-12 text-white" />
@@ -369,14 +368,12 @@ export default function PonchieDojo() {
 
   if (gameState === 'generating') {
     return (
-      <div className="min-h-screen bg-stone-900 flex flex-col items-center justify-center text-white">
+      <div className="min-h-screen bg-stone-900 flex flex-col items-center justify-center text-white select-none">
         <div className="animate-spin mb-6">
           <RotateCcw className="w-12 h-12 text-yellow-400" />
         </div>
         <h2 className="text-2xl font-bold mb-2">お題を生成中...</h2>
-        <p className="text-stone-400">
-          {currentTheme.title || 'テーマを選定中...'}
-        </p>
+        <p className="text-stone-400">{currentTheme.title || 'テーマを選定中...'}</p>
         <p className="text-xs text-stone-600 mt-4">Powered by Pollinations.ai</p>
       </div>
     );
@@ -384,7 +381,7 @@ export default function PonchieDojo() {
 
   if (gameState === 'drawing') {
     return (
-      <div className="min-h-screen bg-stone-100 flex flex-col items-center p-4 overflow-hidden touch-none">
+      <div className="min-h-screen bg-stone-100 flex flex-col items-center p-4 overflow-hidden touch-none select-none">
         <div className="w-full max-w-5xl flex justify-between items-stretch mb-4 gap-4 h-32 md:h-48">
           {/* お題画像（左） */}
           <div className="relative flex-1 bg-black rounded-2xl overflow-hidden shadow-lg border-2 border-stone-800 group">
@@ -397,7 +394,7 @@ export default function PonchieDojo() {
               <img 
                 src={currentImageUrl} 
                 alt={currentTheme.title} 
-                className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
+                className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity select-none pointer-events-none"
                 onError={() => setImgError(true)}
               />
             )}
@@ -425,7 +422,7 @@ export default function PonchieDojo() {
             onPointerMove={draw}
             onPointerUp={stopDrawing}
             onPointerOut={stopDrawing}
-            className="w-full h-full touch-none"
+            className="w-full h-full touch-none select-none"
             style={{ touchAction: 'none' }}
           />
           
