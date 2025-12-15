@@ -334,26 +334,15 @@ export default function PonchieDojo() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    try {
-      // 1. Web Share APIを試行
-      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
-      if (blob && navigator.share) {
-        const file = new File([blob], `ponchie-${Date.now()}.png`, { type: 'image/png' });
-        const shareData = { files: [file] };
-        
-        // canShareチェックはブラウザにより挙動が異なるため、
-        // filesに対応していればとりあえずshareを試みる
-        if (navigator.canShare && navigator.canShare(shareData)) {
-           await navigator.share(shareData);
-           return; 
-        }
-      }
-    } catch (err) {
-      // 共有キャンセルなどはここで無視してモーダルへ
-    }
-
-    // 2. フォールバック: モーダル表示
-    setSaveImage(canvas.toDataURL('image/png'));
+    const dataUrl = canvas.toDataURL('image/png');
+    
+    // ダウンロードリンクを生成してクリック（PCおよびiPadのブラウザ用）
+    const link = document.createElement('a');
+    link.download = `ponchie-${Date.now()}.png`;
+    link.href = dataUrl;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // --- UIコンポーネント ---
@@ -569,41 +558,6 @@ export default function PonchieDojo() {
             </button>
           </div>
         </div>
-
-        {/* 画像保存用モーダル（iPad PWA対応・スタイル強制上書き） */}
-        {saveImage && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setSaveImage(null)}>
-            <div className="bg-white p-4 rounded-2xl max-w-lg w-full relative" onClick={e => e.stopPropagation()}>
-              <button 
-                onClick={() => setSaveImage(null)}
-                className="absolute -top-3 -right-3 bg-stone-800 text-white p-2 rounded-full shadow-lg hover:bg-stone-700"
-              >
-                <X className="w-6 h-6" />
-              </button>
-              <h3 className="text-center font-bold text-lg mb-2">画像を保存</h3>
-              <p className="text-center text-sm text-stone-500 mb-4">
-                画像を長押しして「写真に保存」を選択してください
-              </p>
-              
-              {/* 【重要】CSSでのタッチ無効化を、この画像だけ強制的に解除する */}
-              {/* refコールバックを使って確実にスタイルを適用する */}
-              <img 
-                src={saveImage} 
-                alt="保存用画像" 
-                className="w-full h-auto rounded-lg shadow-inner border border-stone-200"
-                ref={(el) => {
-                  if (el) {
-                    el.style.setProperty('user-select', 'auto', 'important');
-                    el.style.setProperty('-webkit-user-select', 'auto', 'important');
-                    el.style.setProperty('-webkit-touch-callout', 'default', 'important');
-                    el.style.setProperty('touch-action', 'auto', 'important');
-                    el.style.setProperty('pointer-events', 'auto', 'important');
-                  }
-                }}
-              />
-            </div>
-          </div>
-        )}
       </div>
     );
   }
