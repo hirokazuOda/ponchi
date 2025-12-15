@@ -208,7 +208,8 @@ export default function PonchieDojo() {
   // タイトルへ戻る
   const returnToTitle = () => {
     setGameState('title');
-    setPenMode(false); // タイトルに戻るときはペンモードもリセット（お好みで）
+    setPenMode(false); 
+    setSaveImage(null);
   };
 
   // キャンバスのリセット
@@ -328,27 +329,30 @@ export default function PonchieDojo() {
     } catch (err) {}
   };
 
-  // 画像保存処理
+  // 画像保存処理（強化版）
   const downloadDrawing = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     try {
+      // 1. Web Share APIを試行
       const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
-      
-      if (blob && navigator.share && navigator.canShare) {
+      if (blob && navigator.share) {
         const file = new File([blob], `ponchie-${Date.now()}.png`, { type: 'image/png' });
         const shareData = { files: [file] };
-
-        if (navigator.canShare(shareData)) {
-          await navigator.share(shareData);
-          return;
+        
+        // canShareチェックはブラウザにより挙動が異なるため、
+        // filesに対応していればとりあえずshareを試みる
+        if (navigator.canShare && navigator.canShare(shareData)) {
+           await navigator.share(shareData);
+           return; 
         }
       }
     } catch (err) {
-      // 失敗した場合はフォールバック（モーダル表示）へ進む
+      // 共有キャンセルなどはここで無視してモーダルへ
     }
 
+    // 2. フォールバック: モーダル表示
     setSaveImage(canvas.toDataURL('image/png'));
   };
 
@@ -404,7 +408,20 @@ export default function PonchieDojo() {
       <div className="min-h-screen bg-stone-100 flex flex-col p-4 overflow-hidden touch-none select-none">
         {/* ヘッダーエリア */}
         <div className="w-full max-w-5xl mx-auto flex justify-between items-stretch mb-4 gap-4 h-32 md:h-40">
-          <div className="flex-1 bg-stone-800 rounded-2xl flex flex-col items-center justify-center p-4 text-center shadow-lg border-2 border-stone-700">
+          <div className="flex-1 bg-stone-800 rounded-2xl flex flex-col items-center justify-center p-4 text-center shadow-lg border-2 border-stone-700 relative">
+             {/* タイトルへ戻る（中断）ボタン */}
+             <button 
+               onClick={() => {
+                 if (window.confirm('中断してタイトルに戻りますか？')) {
+                   returnToTitle();
+                 }
+               }}
+               className="absolute top-2 left-2 text-stone-500 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
+               title="中断して戻る"
+             >
+               <X className="w-6 h-6" />
+             </button>
+
              <div className="text-yellow-400 font-bold text-sm md:text-base mb-1">{currentTheme.subText}</div>
              <div className="text-white font-black text-2xl md:text-4xl leading-tight">{currentTheme.mainText}</div>
           </div>
@@ -553,7 +570,7 @@ export default function PonchieDojo() {
           </div>
         </div>
 
-        {/* 画像保存用モーダル（iPad PWA対応版） */}
+        {/* 画像保存用モーダル（iPad PWA対応・スタイル強制上書き） */}
         {saveImage && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setSaveImage(null)}>
             <div className="bg-white p-4 rounded-2xl max-w-lg w-full relative" onClick={e => e.stopPropagation()}>
@@ -567,17 +584,21 @@ export default function PonchieDojo() {
               <p className="text-center text-sm text-stone-500 mb-4">
                 画像を長押しして「写真に保存」を選択してください
               </p>
-              {/* 【重要】ここだけ長押しメニューを有効化するスタイルを追加（強力に上書き） */}
+              
+              {/* 【重要】CSSでのタッチ無効化を、この画像だけ強制的に解除する */}
+              {/* refコールバックを使って確実にスタイルを適用する */}
               <img 
                 src={saveImage} 
                 alt="保存用画像" 
                 className="w-full h-auto rounded-lg shadow-inner border border-stone-200"
-                style={{ 
-                  WebkitTouchCallout: 'default', 
-                  WebkitUserSelect: 'auto',
-                  userSelect: 'auto',
-                  pointerEvents: 'auto',
-                  touchAction: 'auto'
+                ref={(el) => {
+                  if (el) {
+                    el.style.setProperty('user-select', 'auto', 'important');
+                    el.style.setProperty('-webkit-user-select', 'auto', 'important');
+                    el.style.setProperty('-webkit-touch-callout', 'default', 'important');
+                    el.style.setProperty('touch-action', 'auto', 'important');
+                    el.style.setProperty('pointer-events', 'auto', 'important');
+                  }
                 }}
               />
             </div>
