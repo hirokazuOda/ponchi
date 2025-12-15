@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Play, RotateCcw, Download, Pencil, Eraser, Clock, Lightbulb, Hand, Trash2, X, Palette } from 'lucide-react';
+import { Play, RotateCcw, Download, Pencil, Eraser, Clock, Lightbulb, Hand, Trash2, X, Palette, Home } from 'lucide-react';
 
 // --- データ定義: アイデア発想・ポンチ絵用の単語パーツ ---
 
@@ -203,6 +203,12 @@ export default function PonchieDojo() {
     });
     setTimeLeft(TIME_LIMIT_FREE);
     requestAnimationFrame(() => resetCanvas());
+  };
+
+  // タイトルへ戻る
+  const returnToTitle = () => {
+    setGameState('title');
+    setPenMode(false); // タイトルに戻るときはペンモードもリセット（お好みで）
   };
 
   // キャンバスのリセット
@@ -513,23 +519,36 @@ export default function PonchieDojo() {
             </div>
           </div>
 
-          <div className="flex flex-col md:flex-row gap-4 justify-center">
+          <div className="flex flex-col gap-4 justify-center items-stretch w-full max-w-lg mx-auto">
+            {/* アクションボタン群 */}
+            <div className="flex flex-col md:flex-row gap-4">
+              <button 
+                onClick={downloadDrawing}
+                className="flex-1 flex items-center justify-center gap-2 bg-stone-200 hover:bg-stone-300 text-stone-800 font-bold py-4 px-6 rounded-xl transition-colors"
+              >
+                <Download className="w-5 h-5" />
+                保存する
+              </button>
+              
+              <button 
+                onClick={
+                  // 前回と同じモードで再開する
+                  gameMode === 'free' ? startFreeMode : startTraining
+                }
+                className="flex-1 flex items-center justify-center gap-2 bg-stone-800 hover:bg-stone-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-transform hover:scale-105"
+              >
+                <RotateCcw className="w-5 h-5" />
+                もう一度やる
+              </button>
+            </div>
+
+            {/* タイトルへ戻るボタン */}
             <button 
-              onClick={downloadDrawing}
-              className="flex items-center justify-center gap-2 bg-stone-200 hover:bg-stone-300 text-stone-800 font-bold py-4 px-8 rounded-xl transition-colors"
+              onClick={returnToTitle}
+              className="flex items-center justify-center gap-2 bg-white hover:bg-stone-50 text-stone-500 font-bold py-3 px-6 rounded-xl border-2 border-stone-200 transition-colors"
             >
-              <Download className="w-5 h-5" />
-              保存する
-            </button>
-            <button 
-              onClick={
-                // 前回と同じモードで再開する
-                gameMode === 'free' ? startFreeMode : startTraining
-              }
-              className="flex items-center justify-center gap-2 bg-stone-800 hover:bg-stone-700 text-white font-bold py-4 px-8 rounded-xl shadow-lg transition-transform hover:scale-105"
-            >
-              <RotateCcw className="w-5 h-5" />
-              次の修行へ
+              <Home className="w-5 h-5" />
+              タイトルへ戻る
             </button>
           </div>
         </div>
@@ -548,12 +567,18 @@ export default function PonchieDojo() {
               <p className="text-center text-sm text-stone-500 mb-4">
                 画像を長押しして「写真に保存」を選択してください
               </p>
-              {/* 【重要】ここだけ長押しメニューを有効化するスタイルを追加 */}
+              {/* 【重要】ここだけ長押しメニューを有効化するスタイルを追加（強力に上書き） */}
               <img 
                 src={saveImage} 
                 alt="保存用画像" 
                 className="w-full h-auto rounded-lg shadow-inner border border-stone-200"
-                style={{ WebkitTouchCallout: 'default', pointerEvents: 'auto', userSelect: 'auto' }}
+                style={{ 
+                  WebkitTouchCallout: 'default', 
+                  WebkitUserSelect: 'auto',
+                  userSelect: 'auto',
+                  pointerEvents: 'auto',
+                  touchAction: 'auto'
+                }}
               />
             </div>
           </div>
