@@ -1,9 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Play, RotateCcw, Download, Pencil, Eraser, Clock, Lightbulb, AlertCircle } from 'lucide-react';
+import { Play, RotateCcw, Download, Pencil, Eraser, Clock, Lightbulb } from 'lucide-react';
 
 // --- データ定義: アイデア発想・ポンチ絵用の単語パーツ ---
-
-type ThemeCategory = 'concrete' | 'abstract'; // 具体的なもの vs 抽象的な状況
 
 interface WordPart {
   text: string;
@@ -52,7 +50,6 @@ export default function PonchieDojo() {
   const [currentTheme, setCurrentTheme] = useState<Theme>({ id: 'init', mainText: '', subText: '' });
   const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
   const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
-  const [turnCount, setTurnCount] = useState(0);
   const [history, setHistory] = useState<string[]>([]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -141,7 +138,6 @@ export default function PonchieDojo() {
   // ゲーム開始処理
   const startGame = () => {
     setGameState('generating');
-    setTurnCount(prev => prev + 1);
     
     // 少しだけ「選んでいる感」を出す演出
     setTimeout(() => {
