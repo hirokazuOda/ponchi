@@ -206,9 +206,6 @@ export default function PonchieDojo() {
   const resetCanvas = () => {
     const canvas = canvasRef.current;
     if (canvas) {
-      // 描画モード中のリセット（全消去ボタン）の場合はサイズ変更は不要
-      // 初期化時のみ親要素に合わせるロジックが必要だが、
-      // ここではシンプルに現在のcanvasサイズを使ってクリアする
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.fillStyle = '#ffffff';
@@ -325,14 +322,42 @@ export default function PonchieDojo() {
     } catch (err) {}
   };
 
-  const downloadDrawing = () => {
+  // 画像保存処理（iPad PWA対応版）
+  const downloadDrawing = async () => {
     const canvas = canvasRef.current;
-    if (canvas) {
-      const link = document.createElement('a');
-      link.download = `ponchie-${currentTheme.mainText}.png`;
-      link.href = canvas.toDataURL();
-      link.click();
+    if (!canvas) return;
+
+    const fileName = `ponchie-${currentTheme.mainText || 'drawing'}.png`;
+
+    try {
+      // iPad/iPhoneではWeb Share APIを使って共有シートを開く（画像保存が可能になる）
+      if (navigator.share && navigator.canShare) {
+        // CanvasをBlobに変換
+        const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+        
+        if (blob) {
+          const file = new File([blob], fileName, { type: 'image/png' });
+          const shareData = {
+            files: [file],
+            // タイトルなどはオプションですがあると親切
+            // title: 'ポンチ絵道場',
+          };
+          
+          if (navigator.canShare(shareData)) {
+            await navigator.share(shareData);
+            return; // 共有成功したら終了
+          }
+        }
+      }
+    } catch (err) {
+      console.log('Share canceled or failed, using fallback', err);
     }
+
+    // フォールバック: PCや非対応ブラウザ向けのダウンロードリンク方式
+    const link = document.createElement('a');
+    link.download = fileName;
+    link.href = canvas.toDataURL();
+    link.click();
   };
 
   // --- UIコンポーネント ---
