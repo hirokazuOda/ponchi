@@ -1,140 +1,78 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Play, RotateCcw, Download, Pencil, Eraser, Clock, Image as ImageIcon, AlertCircle } from 'lucide-react';
+import { Play, RotateCcw, Download, Pencil, Eraser, Clock, Lightbulb, AlertCircle } from 'lucide-react';
 
-// --- データ定義: 無限生成用の単語パーツ ---
+// --- データ定義: アイデア発想・ポンチ絵用の単語パーツ ---
 
-type ThemeCategory = 'object' | 'action';
+type ThemeCategory = 'concrete' | 'abstract'; // 具体的なもの vs 抽象的な状況
 
 interface WordPart {
-  ja: string;
-  en: string;
+  text: string;
 }
 
-// 行動テーマ用パーツ
+// 主語（誰が、何が）- ビジネスや日常、少しシュールなものまで
 const SUBJECTS: WordPart[] = [
-  { ja: '少女', en: 'young girl' },
-  { ja: '少年', en: 'young boy' },
-  { ja: 'おじいさん', en: 'old man' },
-  { ja: 'おばあさん', en: 'old woman' },
-  { ja: 'サラリーマン', en: 'businessman in suit' },
-  { ja: '猫', en: 'cat' },
-  { ja: '犬', en: 'dog' },
-  { ja: 'ロボット', en: 'cute robot' },
-  { ja: '宇宙飛行士', en: 'astronaut' },
-  { ja: '魔法使い', en: 'wizard' },
+  { text: '部長' }, { text: '新入社員' }, { text: 'AIロボット' }, { text: '猫' },
+  { text: '怪獣' }, { text: 'スーパーマン' }, { text: '泥棒' }, { text: '宇宙人' },
+  { text: '脳みそ' }, { text: 'スマートフォン' }, { text: 'ロケット' }, { text: '亀' }
 ];
 
+// 動作・状態（どうしている）- 動きや状況を描く練習
 const ACTIONS: WordPart[] = [
-  { ja: '本を読んでいる', en: 'reading a book' },
-  { ja: '走っている', en: 'running fast, dynamic pose' },
-  { ja: '食事をしている', en: 'eating delicious food' },
-  { ja: '寝ている', en: 'sleeping peacefully' },
-  { ja: 'ダンスをしている', en: 'dancing joyfully' },
-  { ja: '写真を撮っている', en: 'taking a photo with camera' },
-  { ja: '釣りをしている', en: 'fishing' },
-  { ja: '楽器を弾いている', en: 'playing musical instrument' },
-  { ja: '雨宿りをしている', en: 'taking shelter from rain' },
-  { ja: 'コーヒーを飲んでいる', en: 'drinking coffee' },
-  { ja: '叫んでいる', en: 'shouting, screaming' },
-  { ja: 'ジャンプしている', en: 'jumping high' },
+  { text: '謝罪している' }, { text: 'ひらめいた' }, { text: '爆走している' },
+  { text: 'プレゼンしている' }, { text: '壁にぶつかっている' }, { text: '空を飛んでいる' },
+  { text: '爆発した' }, { text: '握手している' }, { text: '迷子になっている' },
+  { text: '積み上げている' }, { text: '溶けている' }, { text: '戦っている' }
 ];
 
-const LOCATIONS_ACTION: WordPart[] = [
-  { ja: '公園で', en: 'in a park, sunny day' },
-  { ja: 'カフェで', en: 'in a cozy cafe' },
-  { ja: '宇宙で', en: 'in outer space, stars background' },
-  { ja: '森の中で', en: 'in a deep forest' },
-  { ja: '海辺で', en: 'at the beach' },
-  { ja: '雪山で', en: 'on a snowy mountain' },
-  { ja: '古い図書館で', en: 'in an old library' },
-  { ja: '屋上で', en: 'on a building rooftop' },
-  { ja: '電車の中で', en: 'inside a train' },
-  { ja: '', en: 'simple background' },
+// 場所・修飾（どこで、どんな）- 状況を複雑にするスパイス
+const CONTEXTS: WordPart[] = [
+  { text: '崖っぷちで' }, { text: '宇宙空間で' }, { text: '満員電車で' },
+  { text: '会議室で' }, { text: '無人島で' }, { text: '夢の中で' },
+  { text: '巨大な' }, { text: '透明な' }, { text: '燃えている' },
+  { text: '猛スピードの' }, { text: '壊れた' }, { text: '未来の' }
 ];
 
-// 物テーマ用パーツ
-const ADJECTIVES: WordPart[] = [
-  { ja: '古い', en: 'antique, vintage, weathered' },
-  { ja: '未来的な', en: 'futuristic, cyberpunk, neon' },
-  { ja: '巨大な', en: 'giant, massive' },
-  { ja: 'ガラス製の', en: 'made of glass, transparent' },
-  { ja: '黄金の', en: 'golden, shiny' },
-  { ja: 'ボロボロの', en: 'broken, ruined' },
-  { ja: 'カラフルな', en: 'colorful, rainbow colored' },
-  { ja: '燃えている', en: 'burning, on fire' },
-  { ja: '凍った', en: 'frozen, icy' },
-  { ja: '浮いている', en: 'floating in air' },
-];
-
+// 具体物（モノを描く練習用）
 const OBJECTS: WordPart[] = [
-  { ja: '時計', en: 'clock' },
-  { ja: 'カメラ', en: 'camera' },
-  { ja: '椅子', en: 'chair' },
-  { ja: '靴', en: 'sneakers' },
-  { ja: 'ハンバーガー', en: 'hamburger' },
-  { ja: '自転車', en: 'bicycle' },
-  { ja: 'ランプ', en: 'lamp' },
-  { ja: '宝箱', en: 'treasure chest' },
-  { ja: '剣', en: 'sword' },
-  { ja: '花瓶', en: 'flower vase' },
-  { ja: 'ラジカセ', en: 'boombox' },
-  { ja: '車', en: 'car' },
-];
-
-const LOCATIONS_OBJECT: WordPart[] = [
-  { ja: '机の上に', en: 'on a wooden desk' },
-  { ja: '草むらに', en: 'on grass field' },
-  { ja: '砂漠に', en: 'in desert' },
-  { ja: '水中に', en: 'underwater' },
-  { ja: '空中に', en: 'in the sky' },
-  { ja: '美術館に', en: 'in a museum' },
-  { ja: '洞窟に', en: 'in a dark cave' },
-  { ja: '', en: 'studio lighting, plain background' },
+  { text: '電球' }, { text: 'ハンバーガー' }, { text: '目覚まし時計' }, { text: '万年筆' },
+  { text: '宝箱' }, { text: 'パソコン' }, { text: '書類の山' }, { text: 'コーヒーカップ' },
+  { text: 'メガネ' }, { text: 'カバン' }, { text: '自転車' }, { text: '消火器' }
 ];
 
 interface Theme {
   id: string;
-  title: string;
-  prompt: string;
-  category: ThemeCategory;
+  mainText: string;
+  subText: string;
 }
 
 const TIME_LIMIT = 30; // 秒
 
 export default function PonchieDojo() {
   const [gameState, setGameState] = useState<'title' | 'generating' | 'drawing' | 'result'>('title');
-  const [currentTheme, setCurrentTheme] = useState<Theme>({ id: 'init', title: '', prompt: '', category: 'object' });
-  const [currentImageUrl, setCurrentImageUrl] = useState<string>('');
+  const [currentTheme, setCurrentTheme] = useState<Theme>({ id: 'init', mainText: '', subText: '' });
   const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
   const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
-  const [imgError, setImgError] = useState(false);
   const [turnCount, setTurnCount] = useState(0);
   const [history, setHistory] = useState<string[]>([]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
 
-  // --- 追加修正: iPad PWA対応の強力なイベント制御 ---
+  // --- iPad PWA対応: タッチイベント制御 ---
   useEffect(() => {
-    // 描画モードでない、またはキャンバスがない場合はスキップ
     if (gameState !== 'drawing' || !canvasRef.current) return;
-
     const canvas = canvasRef.current;
+    
+    // スクロール等のデフォルト動作を防止
+    const preventDefault = (e: TouchEvent) => e.preventDefault();
 
-    // ブラウザのデフォルト動作（スクロールなど）を完全に止める関数
-    const preventDefault = (e: TouchEvent) => {
-      e.preventDefault();
-    };
-
-    // Reactのイベントシステムではなく、直接DOMにリスナーを登録する
-    // { passive: false } が重要で、これにより「スクロールさせない」命令が有効になる
+    // passive: false で確実にイベントをキャンセル可能にする
     canvas.addEventListener('touchstart', preventDefault, { passive: false });
     canvas.addEventListener('touchmove', preventDefault, { passive: false });
     canvas.addEventListener('touchend', preventDefault, { passive: false });
-    canvas.addEventListener('gesturestart', preventDefault as any); // ピンチズームなども防止
+    canvas.addEventListener('gesturestart', preventDefault as any);
 
     return () => {
-      // クリーンアップ
       if (canvas) {
         canvas.removeEventListener('touchstart', preventDefault);
         canvas.removeEventListener('touchmove', preventDefault);
@@ -142,7 +80,7 @@ export default function PonchieDojo() {
         canvas.removeEventListener('gesturestart', preventDefault as any);
       }
     };
-  }, [gameState]); // gameStateが変わるたびに再設定
+  }, [gameState]);
 
   // カウントダウンタイマー
   useEffect(() => {
@@ -157,80 +95,62 @@ export default function PonchieDojo() {
     return () => clearInterval(timer);
   }, [gameState, timeLeft]);
 
-  // ランダムな要素を取得
+  // ランダム要素取得
   const getRandom = (arr: WordPart[]) => arr[Math.floor(Math.random() * arr.length)];
 
   // テーマ生成ロジック
   const generateTheme = useCallback((): Theme => {
-    const isActionTurn = (turnCount + 1) % 2 === 0;
-    let title = '';
-    let prompt = '';
-    let category: ThemeCategory = 'object';
+    const mode = Math.random() > 0.4 ? 'situation' : 'object'; // 6割はシチュエーション
+    let mainText = '';
+    let subText = '';
 
+    // 重複回避ループ
     for (let i = 0; i < 5; i++) {
-      if (isActionTurn) {
-        const loc = getRandom(LOCATIONS_ACTION);
-        const sub = getRandom(SUBJECTS);
+      if (mode === 'situation') {
+        // 例: 「崖っぷちで」「謝罪している」「部長」
+        const ctx = getRandom(CONTEXTS);
         const act = getRandom(ACTIONS);
-        title = `${loc.ja}${act.ja}${sub.ja}`;
-        prompt = `${sub.en}, ${act.en}, ${loc.en}, photorealistic, detailed`;
-        category = 'action';
+        const sub = getRandom(SUBJECTS);
+        
+        mainText = `${sub.text}が${act.text}`;
+        subText = `${ctx.text}`;
       } else {
-        const loc = getRandom(LOCATIONS_OBJECT);
-        const adj = getRandom(ADJECTIVES);
+        // 例: 「巨大な」「目覚まし時計」
+        const ctx = getRandom(CONTEXTS);
         const obj = getRandom(OBJECTS);
-        title = `${loc.ja}${adj.ja}${obj.ja}`;
-        prompt = `${adj.en} ${obj.en}, ${loc.en}, photorealistic, 8k resolution, still life`;
-        category = 'object';
+        
+        mainText = obj.text;
+        subText = `${ctx.text}`;
       }
-      if (!history.includes(title)) break;
+
+      const fullText = subText + mainText;
+      if (!history.includes(fullText)) {
+        // 履歴更新
+        setHistory(prev => {
+          const newHistory = [fullText, ...prev];
+          if (newHistory.length > 20) newHistory.pop();
+          return newHistory;
+        });
+        break;
+      }
     }
 
-    setHistory(prev => {
-      const newHistory = [title, ...prev];
-      if (newHistory.length > 20) newHistory.pop();
-      return newHistory;
-    });
-
-    return { id: Date.now().toString(), title, prompt, category };
-  }, [turnCount, history]);
+    return { id: Date.now().toString(), mainText, subText };
+  }, [history]);
 
   // ゲーム開始処理
   const startGame = () => {
     setGameState('generating');
-    setImgError(false);
     setTurnCount(prev => prev + 1);
-    const nextTheme = generateTheme();
-    setCurrentTheme(nextTheme);
-
-    const seed = Math.floor(Math.random() * 100000);
-    const generatedUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(nextTheme.prompt)}?width=800&height=600&nologo=true&seed=${seed}&model=flux`;
-    setCurrentImageUrl(generatedUrl);
     
-    const img = new Image();
-    img.src = generatedUrl;
-    
-    const minWaitTime = 2500;
-    const startTime = Date.now();
-
-    img.onload = () => {
-      const elapsed = Date.now() - startTime;
-      const remaining = Math.max(0, minWaitTime - elapsed);
-      setTimeout(() => {
-        setGameState('drawing');
-        setTimeLeft(TIME_LIMIT);
-        requestAnimationFrame(() => resetCanvas());
-      }, remaining);
-    };
-
-    img.onerror = () => {
-      setTimeout(() => {
-        setGameState('drawing');
-        setTimeLeft(TIME_LIMIT);
-        setImgError(true);
-        requestAnimationFrame(() => resetCanvas());
-      }, minWaitTime);
-    };
+    // 少しだけ「選んでいる感」を出す演出
+    setTimeout(() => {
+      const nextTheme = generateTheme();
+      setCurrentTheme(nextTheme);
+      setGameState('drawing');
+      setTimeLeft(TIME_LIMIT);
+      requestAnimationFrame(() => resetCanvas());
+    }, 800);
   };
 
   // キャンバスのリセット
@@ -252,7 +172,7 @@ export default function PonchieDojo() {
     }
   };
 
-  // 画面リサイズ時の処理
+  // リサイズ対応
   useEffect(() => {
     const handleResize = () => {
       if (gameState === 'drawing' && canvasRef.current) {
@@ -291,7 +211,6 @@ export default function PonchieDojo() {
   };
 
   const startDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    // 念のためここでもpreventDefault
     e.preventDefault(); 
     (e.target as Element).setPointerCapture(e.pointerId);
     isDrawingRef.current = true;
@@ -300,9 +219,9 @@ export default function PonchieDojo() {
     if (ctx) {
       ctx.beginPath();
       ctx.moveTo(x, y);
-      ctx.lineWidth = tool === 'pen' ? 4 : 20;
+      ctx.lineWidth = tool === 'pen' ? 3 : 20; // ペンを少し細くして付箋描画っぽく
       ctx.strokeStyle = tool === 'pen' ? '#1a1a1a' : '#ffffff';
-      ctx.lineTo(x, y); // 点を描画
+      ctx.lineTo(x, y);
       ctx.stroke();
     }
   };
@@ -313,8 +232,6 @@ export default function PonchieDojo() {
     const { x, y } = getCoordinates(e);
     const ctx = canvasRef.current?.getContext('2d');
     if (ctx) {
-      // 補間処理（ポインターの動きが速い場合に線を滑らかにする）
-      // 今回はシンプルにlineToで実装
       ctx.lineTo(x, y);
       ctx.stroke();
     }
@@ -336,7 +253,7 @@ export default function PonchieDojo() {
     const canvas = canvasRef.current;
     if (canvas) {
       const link = document.createElement('a');
-      link.download = `ponchie-${currentTheme.title}.png`;
+      link.download = `ponchie-${currentTheme.mainText}.png`;
       link.href = canvas.toDataURL();
       link.click();
     }
@@ -352,7 +269,7 @@ export default function PonchieDojo() {
             <Pencil className="w-12 h-12 text-white" />
           </div>
           <h1 className="text-4xl font-black mb-2 tracking-tighter">ポンチ絵道場</h1>
-          <p className="text-stone-500 mb-8 font-medium">30秒一本勝負。無限のテーマに挑め。</p>
+          <p className="text-stone-500 mb-8 font-medium">お題はランダム。直感で描く30秒。</p>
           
           <button 
             onClick={startGame}
@@ -372,50 +289,32 @@ export default function PonchieDojo() {
         <div className="animate-spin mb-6">
           <RotateCcw className="w-12 h-12 text-yellow-400" />
         </div>
-        <h2 className="text-2xl font-bold mb-2">お題を生成中...</h2>
-        <p className="text-stone-400">{currentTheme.title || 'テーマを選定中...'}</p>
-        <p className="text-xs text-stone-600 mt-4">Powered by Pollinations.ai</p>
+        <h2 className="text-2xl font-bold mb-2">お題を選定中...</h2>
       </div>
     );
   }
 
   if (gameState === 'drawing') {
     return (
-      <div className="min-h-screen bg-stone-100 flex flex-col items-center p-4 overflow-hidden touch-none select-none">
-        <div className="w-full max-w-5xl flex justify-between items-stretch mb-4 gap-4 h-32 md:h-48">
-          {/* お題画像（左） */}
-          <div className="relative flex-1 bg-black rounded-2xl overflow-hidden shadow-lg border-2 border-stone-800 group">
-            {imgError ? (
-              <div className="w-full h-full flex flex-col items-center justify-center bg-stone-800 text-stone-400 p-4 text-center">
-                <AlertCircle className="w-8 h-8 mb-2 text-yellow-500" />
-                <span className="text-sm font-bold">画像生成に失敗しました</span>
-              </div>
-            ) : (
-              <img 
-                src={currentImageUrl} 
-                alt={currentTheme.title} 
-                className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity select-none pointer-events-none"
-                onError={() => setImgError(true)}
-              />
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end p-4 pointer-events-none">
-              <div>
-                <span className="text-yellow-400 text-xs font-bold uppercase tracking-wider">Theme</span>
-                <h2 className="text-white text-xl md:text-2xl font-bold">{currentTheme.title}</h2>
-              </div>
-            </div>
+      <div className="min-h-screen bg-stone-100 flex flex-col p-4 overflow-hidden touch-none select-none">
+        {/* ヘッダーエリア：テキストお題と残り時間 */}
+        <div className="w-full max-w-5xl mx-auto flex justify-between items-stretch mb-4 gap-4 h-32 md:h-40">
+          {/* お題テキスト表示（画像の代わりに大きく） */}
+          <div className="flex-1 bg-stone-800 rounded-2xl flex flex-col items-center justify-center p-4 text-center shadow-lg border-2 border-stone-700">
+             <div className="text-yellow-400 font-bold text-sm md:text-base mb-1">{currentTheme.subText}</div>
+             <div className="text-white font-black text-2xl md:text-4xl leading-tight">{currentTheme.mainText}</div>
           </div>
 
-          {/* タイマー（右） */}
-          <div className={`w-32 md:w-48 bg-white rounded-2xl flex flex-col items-center justify-center border-4 ${timeLeft <= 10 ? 'border-red-500 text-red-500 animate-pulse' : 'border-stone-800 text-stone-800'} shadow-lg`}>
+          {/* タイマー */}
+          <div className={`w-32 md:w-40 bg-white rounded-2xl flex flex-col items-center justify-center border-4 ${timeLeft <= 10 ? 'border-red-500 text-red-500 animate-pulse' : 'border-stone-800 text-stone-800'} shadow-lg`}>
              <Clock className="w-8 h-8 mb-1" />
-             <span className="text-4xl md:text-6xl font-black font-mono">{timeLeft}</span>
+             <span className="text-4xl md:text-5xl font-black font-mono">{timeLeft}</span>
              <span className="text-xs font-bold">SECONDS</span>
           </div>
         </div>
 
         {/* 描画エリア */}
-        <div className="flex-1 w-full max-w-5xl bg-white rounded-2xl shadow-xl overflow-hidden border-2 border-stone-300 relative cursor-crosshair">
+        <div className="flex-1 w-full max-w-5xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border-2 border-stone-300 relative cursor-crosshair">
           <canvas
             ref={canvasRef}
             onPointerDown={startDrawing}
@@ -452,22 +351,19 @@ export default function PonchieDojo() {
           <h2 className="text-3xl font-black text-center mb-8 text-stone-800">TIME UP!</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-            <div className="bg-white p-4 rounded-3xl shadow-lg border border-stone-200">
-              <div className="flex items-center gap-2 mb-3 text-stone-500">
-                <ImageIcon className="w-5 h-5" />
-                <span className="font-bold">お題: {currentTheme.title}</span>
+            {/* お題（テキスト） */}
+            <div className="bg-white p-8 rounded-3xl shadow-lg border border-stone-200 flex flex-col items-center justify-center text-center aspect-[4/3]">
+              <div className="flex items-center gap-2 mb-6 text-stone-400">
+                <Lightbulb className="w-6 h-6" />
+                <span className="font-bold">今回のお題</span>
               </div>
-              <div className="aspect-[4/3] rounded-2xl overflow-hidden bg-stone-200">
-                {imgError ? (
-                  <div className="w-full h-full flex items-center justify-center bg-stone-800 text-stone-400">
-                    <AlertCircle className="w-8 h-8" />
-                  </div>
-                ) : (
-                  <img src={currentImageUrl} alt="お題" className="w-full h-full object-cover" />
-                )}
+              <div>
+                <div className="text-stone-500 text-xl font-bold mb-2">{currentTheme.subText}</div>
+                <div className="text-stone-900 text-4xl font-black">{currentTheme.mainText}</div>
               </div>
             </div>
 
+            {/* あなたの絵 */}
             <div className="bg-white p-4 rounded-3xl shadow-lg border-4 border-yellow-400 relative">
               <div className="absolute -top-3 -right-3 bg-yellow-400 text-black font-bold px-4 py-1 rounded-full shadow-md transform rotate-3">
                 YOUR WORK

@@ -1,3 +1,22 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* iOS/iPad PWAモード向けの最適化 */
+body {
+  /* 長押しメニュー（コンテキストメニュー）を無効化 */
+  -webkit-touch-callout: none;
+  /* テキスト選択を無効化 */
+  -webkit-user-select: none;
+  user-select: none;
+  /* ピンチイン・ピンチアウトなどの画面全体のジェスチャーを無効化 */
+  touch-action: none;
+  /* スクロール時のバウンスを防ぐ */
+  overscroll-behavior: none;
+}
+
+/* 入力が必要な場所だけ選択可能に戻す（今回は特にないが一応） */
+input, textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
