@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Play, RotateCcw, Download, Pencil, Eraser, Clock, Lightbulb, Hand, Trash2 } from 'lucide-react';
+import { Play, RotateCcw, Download, Pencil, Eraser, Clock, Lightbulb, Hand, Trash2, X } from 'lucide-react';
 
 // --- データ定義: アイデア発想・ポンチ絵用の単語パーツ ---
 
@@ -106,6 +106,7 @@ export default function PonchieDojo() {
   const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
   const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
   const [history, setHistory] = useState<string[]>([]);
+  const [saveImage, setSaveImage] = useState<string | null>(null); // 保存用画像データの状態
   
   // パームリジェクション（ペン専用モード）の状態
   const [penMode, setPenMode] = useState(false);
@@ -322,42 +323,36 @@ export default function PonchieDojo() {
     } catch (err) {}
   };
 
-  // 画像保存処理（iPad PWA対応版）
+  // 画像保存処理（iPad PWA対応強化版）
   const downloadDrawing = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const fileName = `ponchie-${currentTheme.mainText || 'drawing'}.png`;
-
     try {
-      // iPad/iPhoneではWeb Share APIを使って共有シートを開く（画像保存が可能になる）
-      if (navigator.share && navigator.canShare) {
-        // CanvasをBlobに変換
-        const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
-        
-        if (blob) {
-          const file = new File([blob], fileName, { type: 'image/png' });
-          const shareData = {
-            files: [file],
-            // タイトルなどはオプションですがあると親切
-            // title: 'ポンチ絵道場',
-          };
-          
-          if (navigator.canShare(shareData)) {
-            await navigator.share(shareData);
-            return; // 共有成功したら終了
-          }
+      // 1. Web Share API (iPad/iPhoneの共有シート呼び出し)
+      // canvas.toBlobは非同期なのでPromiseでラップして確実にBlob化
+      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+      
+      if (blob && navigator.share && navigator.canShare) {
+        const file = new File([blob], `ponchie-${Date.now()}.png`, { type: 'image/png' });
+        const shareData = { files: [file] };
+
+        // ファイル共有がサポートされているか確認
+        if (navigator.canShare(shareData)) {
+          await navigator.share(shareData);
+          return; // 共有成功したら終了
         }
       }
     } catch (err) {
-      console.log('Share canceled or failed, using fallback', err);
+      // ユーザーが共有シートを閉じた場合などはエラーになるが無視
+      if ((err as any).name === 'AbortError') return;
+      console.log('Share failed or not supported, using fallback');
     }
 
-    // フォールバック: PCや非対応ブラウザ向けのダウンロードリンク方式
-    const link = document.createElement('a');
-    link.download = fileName;
-    link.href = canvas.toDataURL();
-    link.click();
+    // 2. フォールバック: 画像保存用モーダルを表示
+    // iPad PWAではダウンロードリンクが効かないことが多いため、
+    // 画像を画面に表示して「長押し保存」を促す方式に切り替える
+    setSaveImage(canvas.toDataURL('image/png'));
   };
 
   // --- UIコンポーネント ---
@@ -532,6 +527,25 @@ export default function PonchieDojo() {
             </button>
           </div>
         </div>
+
+        {/* 画像保存用モーダル（iPad PWAなどダウンロード機能制限環境用） */}
+        {saveImage && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setSaveImage(null)}>
+            <div className="bg-white p-4 rounded-2xl max-w-lg w-full relative" onClick={e => e.stopPropagation()}>
+              <button 
+                onClick={() => setSaveImage(null)}
+                className="absolute -top-3 -right-3 bg-stone-800 text-white p-2 rounded-full shadow-lg hover:bg-stone-700"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              <h3 className="text-center font-bold text-lg mb-2">画像を保存</h3>
+              <p className="text-center text-sm text-stone-500 mb-4">
+                画像を長押しして「写真に保存」を選択してください
+              </p>
+              <img src={saveImage} alt="保存用画像" className="w-full h-auto rounded-lg shadow-inner border border-stone-200" />
+            </div>
+          </div>
+        )}
       </div>
     );
   }
