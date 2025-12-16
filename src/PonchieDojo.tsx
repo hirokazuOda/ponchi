@@ -330,7 +330,7 @@ export default function PonchieDojo() {
     } catch (err) {}
   };
 
-  // 画像保存処理（強化版 v2）
+  // 画像保存処理（究極版）
   const downloadDrawing = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -339,33 +339,41 @@ export default function PonchieDojo() {
       // 1. Web Share API (iPad/iPhoneの共有シート呼び出し)
       // fetchを使ってBlobを確実に生成する
       const dataUrl = canvas.toDataURL('image/png');
-      const blob = await (await fetch(dataUrl)).blob();
+      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
       
       if (blob && navigator.share) {
         const file = new File([blob], `ponchie-${Date.now()}.png`, { type: 'image/png' });
-        const shareData = {
-          files: [file],
-        };
-
-        // canShareチェックは環境依存があるため、try-catchで共有を試みる
-        await navigator.share(shareData);
-        return; // 共有成功したら終了
+        
+        // ファイル共有がサポートされているか確認
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: 'ポンチ絵道場', // タイトルがあったほうが親切
+          });
+          return; // 共有成功したら終了
+        }
       }
     } catch (err) {
       console.log('Share canceled or failed', err);
+      // 共有キャンセル時は何もしないか、失敗時はモーダルへフォールバック
     }
 
-    // 2. フォールバック: PC用ダウンロード（iPad PWAでは機能しないことが多いが念のため）
-    const dataUrl = canvas.toDataURL('image/png');
-    const link = document.createElement('a');
-    link.download = `ponchie-${Date.now()}.png`;
-    link.href = dataUrl;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // 2. PC用: 直接ダウンロードリンク（タッチデバイス以外）
+    // iPad PWAではこれが無視されるため、タッチ判定でスキップさせる
+    if (!('ontouchstart' in window) || !navigator.maxTouchPoints) {
+      const dataUrl = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.download = `ponchie-${Date.now()}.png`;
+      link.href = dataUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return; 
+    }
 
-    // 3. 最終手段: 画像保存用モーダルを表示
-    setSaveImage(dataUrl);
+    // 3. iPad PWA Fallback: 画像保存用モーダルを表示
+    // 共有も失敗し、PCでもない（＝iPadなど）場合はこれを表示
+    setSaveImage(canvas.toDataURL('image/png'));
   };
 
   // --- UIコンポーネント ---
