@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Play, RotateCcw, Download, Pencil, Eraser, Clock, Lightbulb, Hand, Trash2, X, Palette, Home } from 'lucide-react';
 
+// バージョン情報
+const APP_VERSION = 'v1.1.0';
+
 // --- データ定義: アイデア発想・ポンチ絵用の単語パーツ ---
 
 interface WordPart {
@@ -330,24 +333,21 @@ export default function PonchieDojo() {
     } catch (err) {}
   };
 
-  // 画像保存処理（究極版）
+  // 画像保存処理
   const downloadDrawing = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // ベースのデータURLを取得（共通で使用）
     const dataUrl = canvas.toDataURL('image/png');
 
     try {
-      // 1. Web Share API (iPad/iPhoneの共有シート呼び出し)
-      // fetchを使ってBlobを生成（互換性向上のため dataUrl から変換）
+      // 1. Web Share API (iPad/iPhone優先)
+      // fetchでblob化
       const blob = await (await fetch(dataUrl)).blob();
       
       if (blob && navigator.share) {
         const file = new File([blob], `ponchie-${Date.now()}.png`, { type: 'image/png' });
         
-        // ファイル共有がサポートされているか確認
-        // navigator.canShare のチェックはブラウザ実装に依存するため、tryブロック内で実行してエラーならcatchへ
         const shareData = {
             files: [file],
             title: 'ポンチ絵道場',
@@ -355,20 +355,20 @@ export default function PonchieDojo() {
 
         if (navigator.canShare && navigator.canShare(shareData)) {
           await navigator.share(shareData);
-          return; // 共有成功したら終了
+          return; 
         } else if (navigator.share) {
-           // canShareがない場合でもshareを試みる（古いiOSなど）
+           // canShareがなくてもトライ
            await navigator.share(shareData);
            return;
         }
       }
     } catch (err) {
       console.log('Share canceled or failed', err);
-      // 共有キャンセル時は何もしないか、失敗時はモーダルへフォールバック
     }
 
-    // 2. PC用: 直接ダウンロードリンク（タッチデバイス以外）
-    // iPad PWAではこれが無視されるため、タッチ判定でスキップさせる
+    // 2. PC用ダウンロード (タッチデバイス以外なら実行)
+    // iPad PWAではこれが動かないことが多いので、タッチ非対応デバイスに限定してもよいが、
+    // ここでは安全のため実行しつつ、次へ進む
     if (!('ontouchstart' in window) || !navigator.maxTouchPoints) {
       const link = document.createElement('a');
       link.download = `ponchie-${Date.now()}.png`;
@@ -388,7 +388,7 @@ export default function PonchieDojo() {
 
   if (gameState === 'title') {
     return (
-      <div className="min-h-screen bg-stone-100 flex flex-col items-center justify-center p-6 text-stone-800 font-sans select-none">
+      <div className="min-h-screen bg-stone-100 flex flex-col items-center justify-center p-6 text-stone-800 font-sans select-none relative">
         <div className="bg-white p-8 md:p-12 rounded-3xl shadow-xl flex flex-col items-center max-w-lg w-full text-center border-4 border-stone-800">
           <div className="w-24 h-24 bg-stone-800 rounded-full flex items-center justify-center mb-6">
             <Pencil className="w-12 h-12 text-white" />
@@ -415,6 +415,11 @@ export default function PonchieDojo() {
               <span className="text-xs bg-stone-100 px-2 py-1 rounded text-stone-500">60秒</span>
             </button>
           </div>
+        </div>
+        
+        {/* バージョン表示 */}
+        <div className="absolute bottom-4 right-4 text-xs text-stone-400 font-mono">
+          {APP_VERSION}
         </div>
       </div>
     );
@@ -619,12 +624,15 @@ export default function PonchieDojo() {
                 alt="保存用画像" 
                 className="w-full h-auto rounded-lg shadow-inner border border-stone-200"
                 onDragStart={(e) => e.preventDefault()} // ドラッグを防止
-                style={{ 
-                  WebkitTouchCallout: 'default', 
-                  WebkitUserSelect: 'auto',
-                  userSelect: 'auto',
-                  pointerEvents: 'auto',
-                  touchAction: 'auto'
+                ref={(el) => {
+                  if (el) {
+                    // インラインスタイルで強力に上書き
+                    el.style.setProperty('user-select', 'auto', 'important');
+                    el.style.setProperty('-webkit-user-select', 'auto', 'important');
+                    el.style.setProperty('-webkit-touch-callout', 'default', 'important');
+                    el.style.setProperty('touch-action', 'auto', 'important');
+                    el.style.setProperty('pointer-events', 'auto', 'important');
+                  }
                 }}
               />
             </div>
