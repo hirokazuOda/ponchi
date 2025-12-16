@@ -330,44 +330,41 @@ export default function PonchieDojo() {
     } catch (err) {}
   };
 
-  // 画像保存処理（究極版）
+  // 画像保存処理（強化版 v2）
   const downloadDrawing = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     try {
       // 1. Web Share API (iPad/iPhoneの共有シート呼び出し)
-      // canvas.toBlobは非同期なのでPromiseでラップして確実にBlob化
-      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+      // fetchを使ってBlobを確実に生成する
+      const dataUrl = canvas.toDataURL('image/png');
+      const blob = await (await fetch(dataUrl)).blob();
       
-      if (blob && navigator.share && navigator.canShare) {
+      if (blob && navigator.share) {
         const file = new File([blob], `ponchie-${Date.now()}.png`, { type: 'image/png' });
-        const shareData = { files: [file] };
+        const shareData = {
+          files: [file],
+        };
 
-        // ファイル共有がサポートされているか確認
-        if (navigator.canShare(shareData)) {
-          await navigator.share(shareData);
-          return; // 共有成功したら終了
-        }
+        // canShareチェックは環境依存があるため、try-catchで共有を試みる
+        await navigator.share(shareData);
+        return; // 共有成功したら終了
       }
     } catch (err) {
-      // ユーザーが共有シートを閉じた場合などはエラーになるが無視
       console.log('Share canceled or failed', err);
     }
 
-    // 2. PC用ダウンロード（iPad PWAでは機能しないことが多いが念のため）
+    // 2. フォールバック: PC用ダウンロード（iPad PWAでは機能しないことが多いが念のため）
     const dataUrl = canvas.toDataURL('image/png');
     const link = document.createElement('a');
     link.download = `ponchie-${Date.now()}.png`;
     link.href = dataUrl;
-    // リンクをクリックしたとみなす
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 
     // 3. 最終手段: 画像保存用モーダルを表示
-    // 共有も自動ダウンロードも失敗した場合（またはiPad PWAの場合）、
-    // ユーザーに画像を提示して手動保存を促す
     setSaveImage(dataUrl);
   };
 
@@ -585,7 +582,7 @@ export default function PonchieDojo() {
           </div>
         </div>
 
-        {/* 画像保存用モーダル（iPad PWA対応・スタイル強制上書き） */}
+        {/* 画像保存用モーダル（iPad PWA対応・スタイル強制上書き・ドラッグ無効化） */}
         {saveImage && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setSaveImage(null)}>
             <div className="bg-white p-4 rounded-2xl max-w-lg w-full relative" onClick={e => e.stopPropagation()}>
@@ -600,12 +597,12 @@ export default function PonchieDojo() {
                 画像を長押しして「写真に保存」を選択してください
               </p>
               
-              {/* 【重要】CSSでのタッチ無効化を、この画像だけ強制的に解除する */}
-              {/* refコールバックを使って確実にスタイルを適用する */}
+              {/* 【重要】ドラッグ操作を無効化し、長押しメニュー（保存）を優先させる */}
               <img 
                 src={saveImage} 
                 alt="保存用画像" 
                 className="w-full h-auto rounded-lg shadow-inner border border-stone-200"
+                onDragStart={(e) => e.preventDefault()} // ドラッグを防止
                 style={{ 
                   WebkitTouchCallout: 'default', 
                   WebkitUserSelect: 'auto',
