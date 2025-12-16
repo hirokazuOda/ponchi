@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Play, RotateCcw, Download, Pencil, Eraser, Clock, Lightbulb, Hand, Trash2, X, Palette, Home, ExternalLink } from 'lucide-react';
+import { Play, RotateCcw, Pencil, Eraser, Clock, Lightbulb, Hand, Trash2, X, Palette, Home, Info } from 'lucide-react';
 
 // バージョン情報
-const APP_VERSION = 'v1.3.0';
+const APP_VERSION = 'v1.4.0';
 
 // --- データ定義 ---
 
@@ -89,30 +89,12 @@ interface Theme {
 const TIME_LIMIT_TRAINING = 30;
 const TIME_LIMIT_FREE = 60;
 
-// Base64をBlobに変換する関数（同期的）
-const dataURLtoBlob = (dataurl: string) => {
-  const arr = dataurl.split(',');
-  const match = arr[0].match(/:(.*?);/);
-  const mime = match ? match[1] : 'image/png';
-  const bstr = atob(arr[1]);
-  let n = bstr.length;
-  const u8arr = new Uint8Array(n);
-  while (n--) {
-    u8arr[n] = bstr.charCodeAt(n);
-  }
-  return new Blob([u8arr], { type: mime });
-};
-
 export default function PonchieDojo() {
   const [gameState, setGameState] = useState<'title' | 'generating' | 'drawing' | 'result'>('title');
   const [currentTheme, setCurrentTheme] = useState<Theme>({ id: 'init', mainText: '', subText: '' });
   const [timeLeft, setTimeLeft] = useState(TIME_LIMIT_TRAINING);
   const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
   const [history, setHistory] = useState<string[]>([]);
-  // 保存失敗時用：画像データ(Base64)
-  const [saveImageData, setSaveImageData] = useState<string | null>(null);
-  // 保存失敗時用：ダウンロード用BlobURL
-  const [downloadLink, setDownloadLink] = useState<string | null>(null);
   
   const [gameMode, setGameMode] = useState<'training' | 'free'>('training');
   const [penMode, setPenMode] = useState(false);
@@ -121,14 +103,12 @@ export default function PonchieDojo() {
   const isDrawingRef = useRef(false);
 
   // --- iPad PWA対応: タッチイベント制御 ---
-  // CSSで大枠は制御しているが、描画エリアだけはJSでも厳密に制御
   useEffect(() => {
     if (gameState !== 'drawing' || !canvasRef.current) return;
     const canvas = canvasRef.current;
     
     const preventDefault = (e: TouchEvent) => e.preventDefault();
 
-    // passive: false で確実にイベントをキャンセル
     canvas.addEventListener('touchstart', preventDefault, { passive: false });
     canvas.addEventListener('touchmove', preventDefault, { passive: false });
     canvas.addEventListener('touchend', preventDefault, { passive: false });
@@ -216,7 +196,6 @@ export default function PonchieDojo() {
   const returnToTitle = () => {
     setGameState('title');
     setPenMode(false); 
-    closeSaveModal();
   };
 
   const resetCanvas = () => {
@@ -232,11 +211,14 @@ export default function PonchieDojo() {
     }
   };
   
+  // 初期化時のサイズ設定用: 常に正方形にする
   const initCanvasSize = () => {
     const canvas = canvasRef.current;
     if (canvas && canvas.parentElement) {
-      canvas.width = canvas.parentElement.clientWidth;
-      canvas.height = canvas.parentElement.clientHeight;
+      // 親要素のサイズを取得
+      const size = Math.min(canvas.parentElement.clientWidth, canvas.parentElement.clientHeight);
+      canvas.width = size;
+      canvas.height = size;
       resetCanvas();
     }
   };
@@ -247,24 +229,33 @@ export default function PonchieDojo() {
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
+        
+        // 現在の描画内容を保存
         const tempCanvas = document.createElement('canvas');
         const tempCtx = tempCanvas.getContext('2d');
         tempCanvas.width = canvas.width;
         tempCanvas.height = canvas.height;
         if (tempCtx) tempCtx.drawImage(canvas, 0, 0);
 
-        const parent = canvas.parentElement;
-        if (parent) {
-          canvas.width = parent.clientWidth;
-          canvas.height = parent.clientHeight;
+        // 正方形サイズを再計算
+        if (canvas.parentElement) {
+          const size = Math.min(canvas.parentElement.clientWidth, canvas.parentElement.clientHeight);
+          canvas.width = size;
+          canvas.height = size;
+          
           ctx.fillStyle = '#ffffff';
           ctx.fillRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(tempCanvas, 0, 0);
+          // 内容をストレッチして復元（比率維持）
+          ctx.drawImage(tempCanvas, 0, 0, tempCanvas.width, tempCanvas.height, 0, 0, canvas.width, canvas.height);
         }
       }
     };
     window.addEventListener('resize', handleResize);
-    if (gameState === 'drawing') initCanvasSize();
+    // 初期化時も確実にサイズ合わせ
+    if (gameState === 'drawing') {
+      // 少し遅延させてレイアウト確定を待つ
+      setTimeout(initCanvasSize, 50);
+    }
     return () => window.removeEventListener('resize', handleResize);
   }, [gameState]);
 
@@ -319,59 +310,6 @@ export default function PonchieDojo() {
     try { (e.target as Element).releasePointerCapture(e.pointerId); } catch (err) {}
   };
 
-  // 画像保存処理
-  const downloadDrawing = async () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    // 1. 同期的にデータURLを取得
-    const dataUrl = canvas.toDataURL('image/png');
-
-    try {
-      // 2. Web Share APIを試す (iPad/iPhone PWAの推奨ルート)
-      const blob = dataURLtoBlob(dataUrl);
-      if (blob && navigator.share) {
-        const file = new File([blob], `ponchie-${Date.now()}.png`, { type: 'image/png' });
-        const shareData = { files: [file], title: 'ポンチ絵道場' };
-
-        // 共有可能かチェックして実行
-        if ((navigator.canShare && navigator.canShare(shareData)) || navigator.share) {
-          await navigator.share(shareData);
-          return; // 成功したらここで終了
-        }
-      }
-    } catch (err) {
-      console.log('Share skipped or failed:', err);
-    }
-
-    // 3. PCやAndroid用の通常ダウンロード
-    // タッチ非対応デバイス、または共有失敗時の一部で実行
-    if (!('ontouchstart' in window) || !navigator.maxTouchPoints) {
-      const link = document.createElement('a');
-      link.download = `ponchie-${Date.now()}.png`;
-      link.href = dataUrl;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      return;
-    }
-
-    // 4. iPad PWA Fallback: 保存用モーダルを表示
-    // ここまで到達したら、手動保存用の画面を出す
-    const blob = dataURLtoBlob(dataUrl);
-    const blobUrl = URL.createObjectURL(blob); // Blob URLを作成
-    setSaveImageData(dataUrl);
-    setDownloadLink(blobUrl);
-  };
-
-  const closeSaveModal = () => {
-    setSaveImageData(null);
-    if (downloadLink) {
-      URL.revokeObjectURL(downloadLink); // メモリ解放
-      setDownloadLink(null);
-    }
-  };
-
   // --- UI ---
 
   if (gameState === 'title') {
@@ -408,42 +346,64 @@ export default function PonchieDojo() {
 
   if (gameState === 'drawing') {
     return (
-      <div className="min-h-screen bg-stone-100 flex flex-col p-4 overflow-hidden touch-none select-none">
-        <div className="w-full max-w-5xl mx-auto flex justify-between items-stretch mb-4 gap-4 h-32 md:h-40">
-          <div className="flex-1 bg-stone-800 rounded-2xl flex flex-col items-center justify-center p-4 text-center shadow-lg border-2 border-stone-700 relative">
+      <div className="min-h-screen bg-stone-100 flex flex-col p-2 md:p-4 overflow-hidden touch-none select-none">
+        {/* ヘッダーエリア */}
+        <div className="w-full max-w-6xl mx-auto flex justify-between items-stretch mb-2 gap-2 h-20 md:h-24 shrink-0">
+          <div className="flex-1 bg-stone-800 rounded-2xl flex flex-col items-center justify-center p-2 text-center shadow-lg border-2 border-stone-700 relative">
              <button onClick={() => { if (window.confirm('中断してタイトルに戻りますか？')) returnToTitle(); }} className="absolute top-2 left-2 text-stone-500 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors" title="中断して戻る"><X className="w-6 h-6" /></button>
-             <div className="text-yellow-400 font-bold text-sm md:text-base mb-1">{currentTheme.subText}</div>
-             <div className="text-white font-black text-2xl md:text-4xl leading-tight">{currentTheme.mainText}</div>
+             <div className="text-yellow-400 font-bold text-xs md:text-sm mb-1">{currentTheme.subText}</div>
+             <div className="text-white font-black text-xl md:text-3xl leading-tight">{currentTheme.mainText}</div>
           </div>
-          <div className={`w-32 md:w-40 bg-white rounded-2xl flex flex-col items-center justify-center border-4 ${timeLeft <= 10 ? 'border-red-500 text-red-500 animate-pulse' : 'border-stone-800 text-stone-800'} shadow-lg`}>
-             <Clock className="w-8 h-8 mb-1" />
-             <span className="text-4xl md:text-5xl font-black font-mono">{timeLeft}</span>
-             <span className="text-xs font-bold">SECONDS</span>
-          </div>
-        </div>
-        <div className="flex-1 w-full max-w-5xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border-2 border-stone-300 relative cursor-crosshair">
-          <canvas ref={canvasRef} onPointerDown={startDrawing} onPointerMove={draw} onPointerUp={stopDrawing} onPointerOut={stopDrawing} className="w-full h-full touch-none select-none" style={{ touchAction: 'none' }} />
-          <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-stone-800 rounded-full p-2 flex gap-4 shadow-2xl border border-stone-600 items-center">
-            <button onClick={() => setTool('pen')} className={`p-4 rounded-full transition-all ${tool === 'pen' ? 'bg-white text-black scale-110' : 'text-stone-400 hover:text-white'}`}><Pencil className="w-6 h-6" /></button>
-            <button onClick={() => setTool('eraser')} className={`p-4 rounded-full transition-all ${tool === 'eraser' ? 'bg-white text-black scale-110' : 'text-stone-400 hover:text-white'}`}><Eraser className="w-6 h-6" /></button>
-            <div className="w-px h-8 bg-stone-600 mx-2"></div>
-            <button onClick={() => setPenMode(!penMode)} className={`p-4 rounded-full transition-all relative ${penMode ? 'bg-blue-500 text-white scale-110' : 'text-stone-400 hover:text-white'}`} title={penMode ? "ペン専用モードON" : "ペン専用モードOFF"}><Hand className="w-6 h-6" />{penMode && (<span className="absolute -top-1 -right-1 flex h-4 w-4"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span><span className="relative inline-flex rounded-full h-4 w-4 bg-blue-500 text-[10px] items-center justify-center font-bold">P</span></span>)}</button>
-            <div className="w-px h-8 bg-stone-600 mx-2"></div>
-            <button onClick={() => { if (window.confirm('本当に全て消去しますか？')) resetCanvas(); }} className="p-4 rounded-full transition-all text-stone-400 hover:text-red-400 hover:bg-stone-700" title="全消去"><Trash2 className="w-6 h-6" /></button>
+          <div className={`w-24 md:w-32 bg-white rounded-2xl flex flex-col items-center justify-center border-4 ${timeLeft <= 10 ? 'border-red-500 text-red-500 animate-pulse' : 'border-stone-800 text-stone-800'} shadow-lg`}>
+             <Clock className="w-6 h-6 mb-1" />
+             <span className="text-2xl md:text-4xl font-black font-mono">{timeLeft}</span>
           </div>
         </div>
-        <div className="text-center mt-2 text-stone-400 text-xs">{penMode ? "ペン専用モードON: 指での描画は無効化されています" : ""}</div>
+
+        {/* 描画エリア & ツールバー（レイアウト変更） */}
+        <div className="flex-1 w-full max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-center gap-4 overflow-hidden">
+          
+          {/* キャンバスエリア (正方形・レスポンシブ) */}
+          <div className="aspect-square h-full max-h-[70vh] w-auto max-w-full bg-white rounded-2xl shadow-xl overflow-hidden border-4 border-stone-300 relative cursor-crosshair">
+            <canvas ref={canvasRef} onPointerDown={startDrawing} onPointerMove={draw} onPointerUp={stopDrawing} onPointerOut={stopDrawing} className="w-full h-full touch-none select-none" style={{ touchAction: 'none' }} />
+          </div>
+
+          {/* ツールバー (サイドまたは下部配置) */}
+          <div className="bg-stone-800 p-3 rounded-2xl shadow-2xl border border-stone-600 flex md:flex-col gap-4 items-center justify-center shrink-0">
+            {/* ペン */}
+            <button onClick={() => setTool('pen')} className={`p-4 rounded-xl transition-all ${tool === 'pen' ? 'bg-white text-black scale-110' : 'text-stone-400 hover:text-white hover:bg-stone-700'}`} title="ペン"><Pencil className="w-6 h-6" /></button>
+            {/* 消しゴム */}
+            <button onClick={() => setTool('eraser')} className={`p-4 rounded-xl transition-all ${tool === 'eraser' ? 'bg-white text-black scale-110' : 'text-stone-400 hover:text-white hover:bg-stone-700'}`} title="消しゴム"><Eraser className="w-6 h-6" /></button>
+            
+            <div className="w-px h-8 md:w-8 md:h-px bg-stone-600"></div>
+            
+            {/* パームリジェクション */}
+            <button onClick={() => setPenMode(!penMode)} className={`p-4 rounded-xl transition-all relative ${penMode ? 'bg-blue-500 text-white scale-110' : 'text-stone-400 hover:text-white hover:bg-stone-700'}`} title={penMode ? "ペン専用モードON" : "ペン専用モードOFF"}>
+              <Hand className="w-6 h-6" />
+              {penMode && <span className="absolute -top-1 -right-1 flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span></span>}
+            </button>
+            
+            <div className="w-px h-8 md:w-8 md:h-px bg-stone-600"></div>
+            
+            {/* 全消去 */}
+            <button onClick={() => { if (window.confirm('本当に全て消去しますか？')) resetCanvas(); }} className="p-4 rounded-xl transition-all text-stone-400 hover:text-red-400 hover:bg-stone-700" title="全消去"><Trash2 className="w-6 h-6" /></button>
+          </div>
+        </div>
+        
+        <div className="text-center mt-2 text-stone-400 text-xs h-4">
+          {penMode ? "ペン専用モードON: 指での描画は無効化されています" : ""}
+        </div>
       </div>
     );
   }
 
   if (gameState === 'result') {
     return (
-      <div className="min-h-screen bg-stone-100 flex flex-col items-center p-6 overflow-y-auto">
+      <div className="min-h-screen bg-stone-100 flex flex-col items-center p-6 overflow-y-auto select-none">
         <div className="max-w-4xl w-full">
           <h2 className="text-3xl font-black text-center mb-8 text-stone-800">TIME UP!</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-            <div className="bg-white p-8 rounded-3xl shadow-lg border border-stone-200 flex flex-col items-center justify-center text-center aspect-[4/3]">
+            <div className="bg-white p-8 rounded-3xl shadow-lg border border-stone-200 flex flex-col items-center justify-center text-center aspect-square">
               <div className="flex items-center gap-2 mb-6 text-stone-400"><Lightbulb className="w-6 h-6" /><span className="font-bold">今回のお題</span></div>
               <div>
                 <div className="text-stone-500 text-xl font-bold mb-2">{currentTheme.subText}</div>
@@ -452,62 +412,35 @@ export default function PonchieDojo() {
             </div>
             <div className="bg-white p-4 rounded-3xl shadow-lg border-4 border-yellow-400 relative">
               <div className="absolute -top-3 -right-3 bg-yellow-400 text-black font-bold px-4 py-1 rounded-full shadow-md transform rotate-3">YOUR WORK</div>
-              <div className="flex items-center gap-2 mb-3 text-stone-500"><Pencil className="w-5 h-5" /><span className="font-bold">あなたのスケッチ</span></div>
-              <div className="aspect-[4/3] rounded-2xl overflow-hidden bg-white border border-stone-100">
-                 <img src={canvasRef.current?.toDataURL()} alt="描いた絵" className="w-full h-full object-contain bg-white" />
+              <div className="aspect-square rounded-2xl overflow-hidden bg-white border border-stone-100">
+                 {/* 長押し保存用の画像（強制的にタッチ操作有効化） */}
+                 <img 
+                   src={canvasRef.current?.toDataURL()} 
+                   alt="描いた絵" 
+                   className="w-full h-full object-contain bg-white"
+                   onDragStart={(e) => e.preventDefault()}
+                   style={{ 
+                     WebkitTouchCallout: 'default', 
+                     WebkitUserSelect: 'auto',
+                     userSelect: 'auto',
+                     touchAction: 'auto',
+                     pointerEvents: 'auto' 
+                   }}
+                 />
+              </div>
+              <div className="mt-4 text-center">
+                <div className="flex items-center justify-center gap-2 text-stone-500 text-sm font-bold bg-stone-100 py-2 px-4 rounded-full mx-auto w-fit">
+                  <Info className="w-4 h-4" />
+                  画像を長押しして「写真に保存」
+                </div>
               </div>
             </div>
           </div>
           <div className="flex flex-col gap-4 justify-center items-stretch w-full max-w-lg mx-auto">
-            <div className="flex flex-col md:flex-row gap-4">
-              <button onClick={downloadDrawing} className="flex-1 flex items-center justify-center gap-2 bg-stone-200 hover:bg-stone-300 text-stone-800 font-bold py-4 px-6 rounded-xl transition-colors"><Download className="w-5 h-5" /> 保存する</button>
-              <button onClick={gameMode === 'free' ? startFreeMode : startTraining} className="flex-1 flex items-center justify-center gap-2 bg-stone-800 hover:bg-stone-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-transform hover:scale-105"><RotateCcw className="w-5 h-5" /> もう一度やる</button>
-            </div>
-            <button onClick={returnToTitle} className="flex items-center justify-center gap-2 bg-white hover:bg-stone-50 text-stone-500 font-bold py-3 px-6 rounded-xl border-2 border-stone-200 transition-colors"><Home className="w-5 h-5" /> タイトルへ戻る</button>
+            <button onClick={gameMode === 'free' ? startFreeMode : startTraining} className="w-full flex items-center justify-center gap-2 bg-stone-800 hover:bg-stone-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-transform hover:scale-105"><RotateCcw className="w-5 h-5" /> もう一度やる</button>
+            <button onClick={returnToTitle} className="w-full flex items-center justify-center gap-2 bg-white hover:bg-stone-50 text-stone-500 font-bold py-3 px-6 rounded-xl border-2 border-stone-200 transition-colors"><Home className="w-5 h-5" /> タイトルへ戻る</button>
           </div>
         </div>
-
-        {/* 保存失敗・iPad PWA用モーダル */}
-        {saveImageData && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={closeSaveModal}>
-            <div className="bg-white p-6 rounded-2xl max-w-lg w-full relative flex flex-col gap-4" onClick={e => e.stopPropagation()}>
-              <button onClick={closeSaveModal} className="absolute -top-3 -right-3 bg-stone-800 text-white p-2 rounded-full shadow-lg hover:bg-stone-700"><X className="w-6 h-6" /></button>
-              <h3 className="text-center font-bold text-xl">画像を保存</h3>
-              
-              <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-sm text-blue-800">
-                <p className="font-bold mb-1">💡 保存方法を選んでください</p>
-                <ul className="list-disc list-inside space-y-1">
-                  <li>下の画像を<strong>長押し</strong>して「写真に保存」</li>
-                  <li>または、下の<strong>ダウンロードボタン</strong>をタップ</li>
-                </ul>
-              </div>
-
-              {/* 画像本体: 長押しメニュー許可・ドラッグ禁止 */}
-              <img 
-                src={saveImageData} 
-                alt="保存用画像" 
-                className="w-full h-auto rounded-lg shadow-inner border border-stone-200"
-                draggable={false}
-                onDragStart={e => e.preventDefault()}
-                style={{ WebkitTouchCallout: 'default', userSelect: 'none' }}
-              />
-
-              {/* 明示的なダウンロードボタン (Blob URL使用) */}
-              {downloadLink && (
-                <a 
-                  href={downloadLink} 
-                  download={`ponchie-${Date.now()}.png`}
-                  className="w-full bg-yellow-400 hover:bg-yellow-300 text-black font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2 shadow-md"
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                >
-                  <ExternalLink className="w-5 h-5" />
-                  画像をダウンロードして開く
-                </a>
-              )}
-            </div>
-          </div>
-        )}
       </div>
     );
   }
