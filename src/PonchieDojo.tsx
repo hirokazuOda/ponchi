@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Play, RotateCcw, Pencil, Eraser, Clock, Lightbulb, Hand, Trash2, X, Palette, Home, Info } from 'lucide-react';
 
 // バージョン情報
-const APP_VERSION = 'v1.6.0';
+const APP_VERSION = 'v1.7.0';
 
 // --- データ定義 ---
 
@@ -213,9 +213,10 @@ export default function PonchieDojo() {
   const initCanvasSize = () => {
     const canvas = canvasRef.current;
     if (canvas && canvas.parentElement) {
-      const size = Math.min(canvas.parentElement.clientWidth, canvas.parentElement.clientHeight);
-      canvas.width = size;
-      canvas.height = size;
+      // 親要素のサイズに合わせて内部解像度を設定
+      const rect = canvas.parentElement.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
       resetCanvas();
     }
   };
@@ -234,10 +235,9 @@ export default function PonchieDojo() {
         if (tempCtx) tempCtx.drawImage(canvas, 0, 0);
 
         if (canvas.parentElement) {
-          // リサイズ時も正方形を維持
-          const size = Math.min(canvas.parentElement.clientWidth, canvas.parentElement.clientHeight);
-          canvas.width = size;
-          canvas.height = size;
+          const rect = canvas.parentElement.getBoundingClientRect();
+          canvas.width = rect.width;
+          canvas.height = rect.height;
           
           ctx.fillStyle = '#ffffff';
           ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -340,32 +340,36 @@ export default function PonchieDojo() {
   if (gameState === 'drawing') {
     return (
       <div className="fixed inset-0 bg-stone-100 flex flex-col touch-none select-none">
-        {/* ヘッダーエリア：高さを少し縮小し、余白を調整 */}
-        <div className="shrink-0 w-full flex justify-between items-center p-2 gap-2 h-14 md:h-16 z-10">
+        {/* ヘッダーエリア：高さを広げる */}
+        <div className="shrink-0 w-full flex justify-between items-center p-2 gap-2 h-20 md:h-28 z-10">
           <div className="flex-1 bg-stone-800 rounded-xl flex items-center justify-center p-2 text-center shadow border-2 border-stone-700 relative h-full">
-             <button onClick={() => { if (window.confirm('中断してタイトルに戻りますか？')) returnToTitle(); }} className="absolute left-2 text-stone-500 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors" title="中断して戻る"><X className="w-6 h-6" /></button>
-             <div className="flex flex-col items-center leading-none">
-               <span className="text-yellow-400 font-bold text-[10px] md:text-xs mb-0.5">{currentTheme.subText}</span>
-               <span className="text-white font-black text-lg md:text-2xl">{currentTheme.mainText}</span>
+             <button onClick={() => { if (window.confirm('中断してタイトルに戻りますか？')) returnToTitle(); }} className="absolute left-2 text-stone-500 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors" title="中断して戻る"><X className="w-6 h-6" /></button>
+             <div className="flex flex-col items-center leading-tight px-8">
+               <span className="text-yellow-400 font-bold text-xs md:text-base mb-1">{currentTheme.subText}</span>
+               <span className="text-white font-black text-xl md:text-4xl">{currentTheme.mainText}</span>
              </div>
           </div>
-          <div className="shrink-0 w-20 md:w-24 bg-white rounded-xl flex flex-col items-center justify-center border-4 h-full shadow border-stone-800 text-stone-800">
-             <Clock className="w-4 h-4 mb-0.5" />
-             <span className={`text-2xl font-black font-mono leading-none ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : ''}`}>{timeLeft}</span>
+          <div className="shrink-0 w-20 md:w-32 bg-white rounded-xl flex flex-col items-center justify-center border-4 h-full shadow border-stone-800 text-stone-800">
+             <Clock className="w-5 h-5 md:w-8 md:h-8 mb-0.5" />
+             <span className={`text-2xl md:text-4xl font-black font-mono leading-none ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : ''}`}>{timeLeft}</span>
           </div>
         </div>
 
-        {/* メインエリア：幅制限を解除し、画面いっぱいにキャンバスを広げる */}
-        <div className="flex-1 w-full flex flex-col md:flex-row items-center justify-center gap-2 p-2 min-h-0">
+        {/* メインエリア */}
+        <div className="flex-1 w-full flex flex-col md:flex-row items-center justify-center gap-4 p-4 min-h-0">
           
           {/* キャンバスコンテナ：正方形を維持しつつ最大化 */}
           <div className="relative flex-1 w-full h-full flex items-center justify-center min-h-0 min-w-0">
-             <div className="aspect-square w-full h-full max-h-full max-w-full bg-white rounded-xl shadow-xl overflow-hidden border-2 border-stone-300 relative cursor-crosshair">
+             {/* aspect-square: 正方形を維持
+                w-full md:w-auto md:h-full: スマホ(縦)なら幅いっぱい、タブレット(横)なら高さいっぱい
+                max-w-full max-h-full: 親要素からはみ出さない
+             */}
+             <div className="aspect-square max-h-full max-w-full w-full md:w-auto md:h-full bg-white rounded-xl shadow-xl overflow-hidden border-2 border-stone-300 relative cursor-crosshair">
                 <canvas ref={canvasRef} onPointerDown={startDrawing} onPointerMove={draw} onPointerUp={stopDrawing} onPointerOut={stopDrawing} className="w-full h-full touch-none select-none" style={{ touchAction: 'none' }} />
              </div>
           </div>
 
-          {/* ツールバー：レスポンシブ配置（横画面は右、縦画面は下） */}
+          {/* ツールバー：レスポンシブ配置 */}
           <div className="shrink-0 bg-stone-800 p-2 md:p-3 rounded-2xl shadow-xl border border-stone-600 flex flex-row md:flex-col gap-3 items-center justify-center">
             <button onClick={() => setTool('pen')} className={`p-3 md:p-4 rounded-xl transition-all ${tool === 'pen' ? 'bg-white text-black scale-110' : 'text-stone-400 hover:text-white hover:bg-stone-700'}`}><Pencil className="w-6 h-6" /></button>
             <button onClick={() => setTool('eraser')} className={`p-3 md:p-4 rounded-xl transition-all ${tool === 'eraser' ? 'bg-white text-black scale-110' : 'text-stone-400 hover:text-white hover:bg-stone-700'}`}><Eraser className="w-6 h-6" /></button>
@@ -398,7 +402,7 @@ export default function PonchieDojo() {
           
           <h2 className="shrink-0 text-2xl md:text-3xl font-black text-center text-stone-800 mt-2">TIME UP!</h2>
           
-          {/* コンテンツエリア：高さを抑えてスクロール不要に */}
+          {/* コンテンツエリア */}
           <div className="flex-1 min-h-0 grid grid-rows-2 md:grid-rows-1 md:grid-cols-2 gap-4 md:gap-8 justify-center items-center">
             
             {/* お題カード */}
@@ -415,7 +419,7 @@ export default function PonchieDojo() {
               <div className="absolute -top-3 -right-3 bg-yellow-400 text-black text-xs font-bold px-3 py-1 rounded-full shadow-md transform rotate-3">YOUR WORK</div>
               
               <div className="flex-1 rounded-2xl overflow-hidden bg-white border border-stone-100 relative min-h-0">
-                 {/* 長押し保存用の画像（強制的にタッチ操作有効化） */}
+                 {/* 長押し保存用の画像 */}
                  <img 
                    src={canvasRef.current?.toDataURL()} 
                    alt="描いた絵" 
