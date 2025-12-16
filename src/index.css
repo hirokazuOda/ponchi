@@ -2,21 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
-/* iOS/iPad PWAモード向けの最適化 */
+/* 基本設定 */
+:root {
+  font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
 body {
-  /* 長押しメニュー（コンテキストメニュー）を無効化 */
-  -webkit-touch-callout: none;
-  /* テキスト選択を無効化 */
-  -webkit-user-select: none;
-  user-select: none;
-  /* ピンチイン・ピンチアウトなどの画面全体のジェスチャーを無効化 */
-  touch-action: none;
-  /* スクロール時のバウンスを防ぐ */
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: #f5f5f4;
+  color: #1c1917;
+  /* 画面全体のスクロールバウンスだけ防ぐ */
   overscroll-behavior: none;
 }
 
-/* 入力が必要な場所だけ選択可能に戻す（今回は特にないが一応） */
-input, textarea {
-  -webkit-user-select: text;
-  user-select: text;
+/* 【重要】canvas要素（描画エリア）の中だけ、
+  スクロールや長押しメニューを禁止します。
+  それ以外の場所（保存ボタンや画像表示など）では
+  通常通り操作できるようになります。
+*/
+canvas {
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
