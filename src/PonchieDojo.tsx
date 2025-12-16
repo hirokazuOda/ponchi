@@ -335,22 +335,31 @@ export default function PonchieDojo() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // ベースのデータURLを取得（共通で使用）
+    const dataUrl = canvas.toDataURL('image/png');
+
     try {
       // 1. Web Share API (iPad/iPhoneの共有シート呼び出し)
-      // fetchを使ってBlobを確実に生成する
-      const dataUrl = canvas.toDataURL('image/png');
-      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+      // fetchを使ってBlobを生成（互換性向上のため dataUrl から変換）
+      const blob = await (await fetch(dataUrl)).blob();
       
       if (blob && navigator.share) {
         const file = new File([blob], `ponchie-${Date.now()}.png`, { type: 'image/png' });
         
         // ファイル共有がサポートされているか確認
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({
+        // navigator.canShare のチェックはブラウザ実装に依存するため、tryブロック内で実行してエラーならcatchへ
+        const shareData = {
             files: [file],
-            title: 'ポンチ絵道場', // タイトルがあったほうが親切
-          });
+            title: 'ポンチ絵道場',
+        };
+
+        if (navigator.canShare && navigator.canShare(shareData)) {
+          await navigator.share(shareData);
           return; // 共有成功したら終了
+        } else if (navigator.share) {
+           // canShareがない場合でもshareを試みる（古いiOSなど）
+           await navigator.share(shareData);
+           return;
         }
       }
     } catch (err) {
@@ -361,7 +370,6 @@ export default function PonchieDojo() {
     // 2. PC用: 直接ダウンロードリンク（タッチデバイス以外）
     // iPad PWAではこれが無視されるため、タッチ判定でスキップさせる
     if (!('ontouchstart' in window) || !navigator.maxTouchPoints) {
-      const dataUrl = canvas.toDataURL('image/png');
       const link = document.createElement('a');
       link.download = `ponchie-${Date.now()}.png`;
       link.href = dataUrl;
@@ -373,7 +381,7 @@ export default function PonchieDojo() {
 
     // 3. iPad PWA Fallback: 画像保存用モーダルを表示
     // 共有も失敗し、PCでもない（＝iPadなど）場合はこれを表示
-    setSaveImage(canvas.toDataURL('image/png'));
+    setSaveImage(dataUrl);
   };
 
   // --- UIコンポーネント ---
