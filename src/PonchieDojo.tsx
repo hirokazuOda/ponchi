@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Play, RotateCcw, Pencil, Eraser, Clock, Lightbulb, Hand, Trash2, X, Palette, Home, Info } from 'lucide-react';
 
 // バージョン情報
-const APP_VERSION = 'v1.5.1';
+const APP_VERSION = 'v1.6.0';
 
 // --- データ定義 ---
 
@@ -95,7 +95,6 @@ export default function PonchieDojo() {
   const [timeLeft, setTimeLeft] = useState(TIME_LIMIT_TRAINING);
   const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
   const [history, setHistory] = useState<string[]>([]);
-  // saveImage関連も削除しました
   
   const [gameMode, setGameMode] = useState<'training' | 'free'>('training');
   const [penMode, setPenMode] = useState(false);
@@ -341,8 +340,8 @@ export default function PonchieDojo() {
   if (gameState === 'drawing') {
     return (
       <div className="fixed inset-0 bg-stone-100 flex flex-col touch-none select-none">
-        {/* ヘッダーエリア：高さを固定して中身を中央配置 */}
-        <div className="shrink-0 w-full max-w-6xl mx-auto flex justify-between items-center p-2 gap-2 h-16 md:h-20 z-10">
+        {/* ヘッダーエリア：高さを少し縮小し、余白を調整 */}
+        <div className="shrink-0 w-full flex justify-between items-center p-2 gap-2 h-14 md:h-16 z-10">
           <div className="flex-1 bg-stone-800 rounded-xl flex items-center justify-center p-2 text-center shadow border-2 border-stone-700 relative h-full">
              <button onClick={() => { if (window.confirm('中断してタイトルに戻りますか？')) returnToTitle(); }} className="absolute left-2 text-stone-500 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors" title="中断して戻る"><X className="w-6 h-6" /></button>
              <div className="flex flex-col items-center leading-none">
@@ -356,12 +355,12 @@ export default function PonchieDojo() {
           </div>
         </div>
 
-        {/* メインエリア：残りの高さを埋める */}
-        <div className="flex-1 w-full max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-center gap-4 p-2 min-h-0">
+        {/* メインエリア：幅制限を解除し、画面いっぱいにキャンバスを広げる */}
+        <div className="flex-1 w-full flex flex-col md:flex-row items-center justify-center gap-2 p-2 min-h-0">
           
           {/* キャンバスコンテナ：正方形を維持しつつ最大化 */}
           <div className="relative flex-1 w-full h-full flex items-center justify-center min-h-0 min-w-0">
-             <div className="aspect-square max-h-full max-w-full bg-white rounded-2xl shadow-xl overflow-hidden border-4 border-stone-300 relative cursor-crosshair">
+             <div className="aspect-square w-full h-full max-h-full max-w-full bg-white rounded-xl shadow-xl overflow-hidden border-2 border-stone-300 relative cursor-crosshair">
                 <canvas ref={canvasRef} onPointerDown={startDrawing} onPointerMove={draw} onPointerUp={stopDrawing} onPointerOut={stopDrawing} className="w-full h-full touch-none select-none" style={{ touchAction: 'none' }} />
              </div>
           </div>
@@ -395,7 +394,7 @@ export default function PonchieDojo() {
   if (gameState === 'result') {
     return (
       <div className="fixed inset-0 bg-stone-100 flex flex-col items-center p-4 overflow-hidden select-none">
-        <div className="w-full max-w-5xl flex-1 flex flex-col justify-center min-h-0 gap-4">
+        <div className="w-full max-w-5xl flex-1 flex flex-col justify-center min-h-0 gap-2 md:gap-4">
           
           <h2 className="shrink-0 text-2xl md:text-3xl font-black text-center text-stone-800 mt-2">TIME UP!</h2>
           
