@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Play, RotateCcw, Download, Pencil, Eraser, Clock, Lightbulb, Hand, Trash2, X, Palette, Home, Info } from 'lucide-react';
+import { Play, RotateCcw, Pencil, Eraser, Clock, Lightbulb, Hand, Trash2, X, Palette, Home, Info } from 'lucide-react';
 
 // バージョン情報
-const APP_VERSION = 'v1.5.0';
+const APP_VERSION = 'v1.5.1';
 
 // --- データ定義 ---
 
@@ -89,27 +89,13 @@ interface Theme {
 const TIME_LIMIT_TRAINING = 30;
 const TIME_LIMIT_FREE = 60;
 
-// Base64をBlobに変換する関数（同期的）
-const dataURLtoBlob = (dataurl: string) => {
-  const arr = dataurl.split(',');
-  const match = arr[0].match(/:(.*?);/);
-  const mime = match ? match[1] : 'image/png';
-  const bstr = atob(arr[1]);
-  let n = bstr.length;
-  const u8arr = new Uint8Array(n);
-  while (n--) {
-    u8arr[n] = bstr.charCodeAt(n);
-  }
-  return new Blob([u8arr], { type: mime });
-};
-
 export default function PonchieDojo() {
   const [gameState, setGameState] = useState<'title' | 'generating' | 'drawing' | 'result'>('title');
   const [currentTheme, setCurrentTheme] = useState<Theme>({ id: 'init', mainText: '', subText: '' });
   const [timeLeft, setTimeLeft] = useState(TIME_LIMIT_TRAINING);
   const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
   const [history, setHistory] = useState<string[]>([]);
-  const [saveImage, setSaveImage] = useState<string | null>(null);
+  // saveImage関連も削除しました
   
   const [gameMode, setGameMode] = useState<'training' | 'free'>('training');
   const [penMode, setPenMode] = useState(false);
@@ -209,7 +195,6 @@ export default function PonchieDojo() {
   const returnToTitle = () => {
     setGameState('title');
     setPenMode(false); 
-    setSaveImage(null);
   };
 
   const resetCanvas = () => {
@@ -317,41 +302,6 @@ export default function PonchieDojo() {
     const ctx = canvasRef.current?.getContext('2d');
     if (ctx) { ctx.beginPath(); }
     try { (e.target as Element).releasePointerCapture(e.pointerId); } catch (err) {}
-  };
-
-  const downloadDrawing = async () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const dataUrl = canvas.toDataURL('image/png');
-
-    try {
-      const blob = dataURLtoBlob(dataUrl);
-      
-      if (blob && navigator.share) {
-        const file = new File([blob], `ponchie-${Date.now()}.png`, { type: 'image/png' });
-        const shareData = { files: [file], title: 'ポンチ絵道場' };
-
-        if ((navigator.canShare && navigator.canShare(shareData)) || navigator.share) {
-          await navigator.share(shareData);
-          return; 
-        }
-      }
-    } catch (err) {
-      console.log('Share skipped or failed:', err);
-    }
-
-    if (!('ontouchstart' in window) || !navigator.maxTouchPoints) {
-      const link = document.createElement('a');
-      link.download = `ponchie-${Date.now()}.png`;
-      link.href = dataUrl;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      return; 
-    }
-
-    setSaveImage(dataUrl);
   };
 
   // --- UI ---
@@ -490,25 +440,6 @@ export default function PonchieDojo() {
             <button onClick={returnToTitle} className="flex-1 flex items-center justify-center gap-2 bg-white hover:bg-stone-50 text-stone-500 font-bold py-3 px-4 rounded-xl border-2 border-stone-200 transition-colors text-sm md:text-base"><Home className="w-4 h-4" /> タイトルへ戻る</button>
           </div>
         </div>
-
-        {/* 保存失敗・iPad PWA用モーダル */}
-        {saveImage && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setSaveImage(null)}>
-            <div className="bg-white p-6 rounded-2xl max-w-lg w-full relative flex flex-col gap-4" onClick={e => e.stopPropagation()}>
-              <button onClick={() => setSaveImage(null)} className="absolute -top-3 -right-3 bg-stone-800 text-white p-2 rounded-full shadow-lg hover:bg-stone-700"><X className="w-6 h-6" /></button>
-              <h3 className="text-center font-bold text-xl">画像を保存</h3>
-              <p className="text-center text-sm text-stone-500 mb-4">画像を長押しして「写真に保存」を選択してください</p>
-              <img 
-                src={saveImage} 
-                alt="保存用画像" 
-                className="w-full h-auto rounded-lg shadow-inner border border-stone-200"
-                draggable={false}
-                onDragStart={e => e.preventDefault()}
-                style={{ WebkitTouchCallout: 'default', userSelect: 'none' }}
-              />
-            </div>
-          </div>
-        )}
       </div>
     );
   }
