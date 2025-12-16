@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Play, RotateCcw, Pencil, Eraser, Clock, Lightbulb, Hand, Trash2, X, Palette, Home, Info } from 'lucide-react';
 
 // バージョン情報
-const APP_VERSION = 'v1.7.0';
+const APP_VERSION = 'v1.8.0';
 
 // --- データ定義 ---
 
@@ -10,74 +10,76 @@ interface WordPart {
   text: string;
 }
 
-// 主語（誰が、何が）
+// 主語（誰が、何が）: 描きやすいキャラクターや役割
 const SUBJECTS: WordPart[] = [
-  { text: '部長' }, { text: '新入社員' }, { text: '社長' }, { text: '医者' }, { text: '看護師' },
-  { text: '警察官' }, { text: '消防士' }, { text: '大工' }, { text: 'シェフ' }, { text: 'アイドル' },
-  { text: 'ユーチューバー' }, { text: 'プロゲーマー' }, { text: '力士' }, { text: '忍者' }, { text: 'サムライ' },
-  { text: '探偵' }, { text: '魔法使い' }, { text: '王様' }, { text: '泥棒' }, { text: '宇宙飛行士' },
-  { text: 'サンタクロース' }, { text: 'ピエロ' }, { text: '海賊' }, { text: 'スパイ' },
-  { text: '猫' }, { text: '犬' }, { text: 'ハムスター' }, { text: 'パンダ' }, { text: 'ゴリラ' },
-  { text: 'ライオン' }, { text: 'キリン' }, { text: 'ペンギン' }, { text: 'カラス' }, { text: 'フクロウ' },
-  { text: 'カエル' }, { text: '亀' }, { text: '金魚' }, { text: 'サメ' }, { text: 'タコ' },
-  { text: '恐竜' }, { text: 'ドラゴン' }, { text: 'ユニコーン' }, { text: '怪獣' }, { text: '宇宙人' },
-  { text: '幽霊' }, { text: 'ゾンビ' }, { text: 'AIロボット' }, { text: 'アンドロイド' },
-  { text: '脳みそ' }, { text: 'ガイコツ' }, { text: 'マッチョな人' }, { text: 'おじいさん' }, { text: 'おばあさん' },
-  { text: '赤ちゃん' }, { text: '双子' }, { text: '銅像' }, { text: 'マネキン' }, { text: '雪だるま' },
-  { text: '埴輪' }, { text: 'ムキムキの猫' }
+  // 人・職業
+  { text: 'サラリーマン' }, { text: 'OL' }, { text: '社長' }, { text: '医者' }, { text: '看護師' },
+  { text: '警察官' }, { text: '大工' }, { text: 'シェフ' }, { text: 'アイドル' }, { text: '力士' },
+  { text: '忍者' }, { text: 'サムライ' }, { text: '探偵' }, { text: '魔法使い' }, { text: '王様' },
+  { text: '泥棒' }, { text: '宇宙飛行士' }, { text: 'サンタクロース' }, { text: 'ピエロ' }, { text: '赤ちゃん' },
+  { text: 'おじいさん' }, { text: 'おばあさん' }, { text: 'マッチョ' }, { text: '小学生' },
+  // 生き物
+  { text: '猫' }, { text: '犬' }, { text: 'パンダ' }, { text: 'ゴリラ' }, { text: 'ライオン' },
+  { text: 'キリン' }, { text: 'ペンギン' }, { text: 'カラス' }, { text: 'フクロウ' }, { text: 'カエル' },
+  { text: 'カメ' }, { text: 'サメ' }, { text: 'タコ' }, { text: '恐竜' }, { text: '怪獣' },
+  { text: '宇宙人' }, { text: 'お化け' }, { text: 'ゾンビ' }, { text: 'ロボット' }, { text: '雪だるま' },
+  { text: 'テディベア' }, { text: 'ハニワ' }, { text: '仏像' }
 ];
 
-// 動作・状態（どうしている）
+// 動作・状態（どうしている）: シルエットで表現しやすい動き
 const ACTIONS: WordPart[] = [
-  { text: '大笑いしている' }, { text: 'ガッツポーズしている' }, { text: '踊っている' }, { text: '歌っている' },
-  { text: '走っている' }, { text: '飛んでいる' }, { text: '泳いでいる' }, { text: '登っている' },
-  { text: '筋トレしている' }, { text: '戦っている' }, { text: '魔法をかけている' }, { text: '指揮している' },
-  { text: '演説している' }, { text: 'プレゼンしている' }, { text: 'ひらめいた' }, { text: '発見した' },
-  { text: '泣いている' }, { text: '謝罪している' }, { text: '土下座している' }, { text: '逃げている' },
-  { text: '隠れている' }, { text: '怯えている' }, { text: '怒っている' }, { text: '叫んでいる' },
-  { text: '迷子になっている' }, { text: '転んでいる' }, { text: '溺れている' }, { text: '寝ている' },
-  { text: '気絶している' }, { text: '瞑想している' }, { text: 'サボっている' }, { text: '考えている' },
-  { text: '食事している' }, { text: '料理している' }, { text: '掃除している' }, { text: '電話している' },
-  { text: 'スマホを見ている' }, { text: '読書している' }, { text: 'ゲームしている' }, { text: '釣りをしている' },
-  { text: '運転している' }, { text: '買い物をしている' }, { text: '写真を撮っている' }, { text: '絵を描いている' },
-  { text: '爆発した' }, { text: '溶けている' }, { text: '燃えている' }, { text: '凍っている' },
-  { text: '分裂している' }, { text: '巨大化している' }, { text: '浮いている' }, { text: '壁にぶつかっている' },
-  { text: 'ビームを出している' }, { text: '積み上げている' }, { text: '穴を掘っている' }, { text: '雨宿りしている' }
+  // アクティブ
+  { text: '走っている' }, { text: '飛んでいる' }, { text: '泳いでいる' }, { text: '踊っている' },
+  { text: '歌っている' }, { text: '戦っている' }, { text: '筋トレしている' }, { text: 'ガッツポーズ' },
+  { text: '万歳している' }, { text: 'ジャンプしている' }, { text: '転んでいる' }, { text: '壁ドンしている' },
+  { text: '土下座している' }, { text: '逃げている' }, { text: '隠れている' }, { text: '登っている' },
+  // 日常・静的
+  { text: '寝ている' }, { text: '泣いている' }, { text: '笑っている' }, { text: '怒っている' },
+  { text: '驚いている' }, { text: '考えている' }, { text: 'ひらめいた' }, { text: '食事している' },
+  { text: '電話している' }, { text: 'スマホを見ている' }, { text: '読書している' }, { text: 'ゲームしている' },
+  { text: '自撮りしている' }, { text: 'パソコンしている' }, { text: '運転している' }, { text: '釣りをしている' },
+  { text: '買い物をしている' }, { text: '掃除している' }, { text: '料理している' }, { text: '座っている' },
+  // ファンタジー・状況
+  { text: '爆発した' }, { text: '燃えている' }, { text: '凍っている' }, { text: '浮いている' },
+  { text: '巨大化した' }, { text: 'ビームを出している' }, { text: '魔法をかけている' }, { text: 'UFOに連れ去られる' }
 ];
 
-// 場所・修飾（どこで、どんな）
+// 場所・修飾（どこで、どんな）: 状況を説明する背景や形容詞
 const CONTEXTS: WordPart[] = [
-  { text: '無人島で' }, { text: '宇宙空間で' }, { text: '月面で' }, { text: '砂漠で' }, { text: 'ジャングルで' },
-  { text: '海底で' }, { text: '雲の上で' }, { text: '洞窟の中で' }, { text: '北極で' }, { text: '火口で' },
-  { text: '崖っぷちで' }, { text: '屋上で' }, { text: '満員電車で' }, { text: 'エレベーターで' }, { text: 'トイレで' },
-  { text: 'お風呂で' }, { text: 'ベッドの中で' }, { text: '教室で' }, { text: '会議室で' }, { text: 'コンビニで' },
-  { text: '遊園地で' }, { text: 'お化け屋敷で' }, { text: '牢屋の中で' }, { text: '夢の中で' }, { text: 'テレビの中で' },
-  { text: '巨大な' }, { text: '極小の' }, { text: '透明な' }, { text: '黄金の' }, { text: '虹色の' },
-  { text: 'ボロボロの' }, { text: 'ピカピカの' }, { text: '燃えている' }, { text: '凍った' }, { text: '濡れた' },
-  { text: '粘土でできた' }, { text: 'メカニカルな' }, { text: '毒々しい' }, { text: 'ふわふわの' }, { text: 'トゲトゲの' },
-  { text: '美味しそうな' }, { text: '臭そうな' }, { text: '重すぎる' }, { text: '軽すぎる' }, { text: '高速の' },
-  { text: '嵐の中で' }, { text: '暗闇の中で' }, { text: 'スポットライトを浴びて' }, { text: '逆さまの' },
-  { text: '大量の' }, { text: 'たった一つの' }, { text: '100年後の' }, { text: '江戸時代の' },
-  { text: 'サイバーパンクな' }, { text: 'レトロな' }, { text: 'ドット絵風の' }
+  // 場所
+  { text: '無人島で' }, { text: '宇宙で' }, { text: '月面で' }, { text: '砂漠で' }, { text: 'ジャングルで' },
+  { text: '海の中で' }, { text: '雲の上で' }, { text: '洞窟で' }, { text: '北極で' }, { text: '火山で' },
+  { text: '崖っぷちで' }, { text: '屋上で' }, { text: '満員電車で' }, { text: 'トイレで' }, { text: 'お風呂で' },
+  { text: '布団の中で' }, { text: '学校で' }, { text: '会社で' }, { text: 'コンビニで' }, { text: '遊園地で' },
+  { text: 'お化け屋敷で' }, { text: '牢屋で' }, { text: '夢の中で' }, { text: 'テレビの中で' },
+  // 状態・性質
+  { text: '巨大な' }, { text: 'ミニサイズの' }, { text: '透明な' }, { text: '金ピカの' }, { text: 'ボロボロの' },
+  { text: '燃えている' }, { text: '凍った' }, { text: 'ビショビショの' }, { text: 'フワフワの' }, { text: 'トゲトゲの' },
+  { text: '美味しそうな' }, { text: '臭そうな' }, { text: 'めっちゃ重い' }, { text: 'めっちゃ速い' },
+  { text: '嵐の中の' }, { text: '暗闇の中の' }, { text: 'スポットライトを浴びた' }, { text: '逆さまの' },
+  { text: '大量の' }, { text: 'たった一つの' }, { text: '100年後の' }, { text: '江戸時代の' }
 ];
 
-// 具体物
+// 具体物（モノを描く練習用）
 const OBJECTS: WordPart[] = [
-  { text: 'スマートフォン' }, { text: 'パソコン' }, { text: 'マウス' }, { text: '鉛筆' }, { text: '万年筆' },
-  { text: '消しゴム' }, { text: 'ハサミ' }, { text: 'ホッチキス' }, { text: 'ノート' }, { text: '手帳' },
-  { text: 'カバン' }, { text: '財布' }, { text: '鍵' }, { text: 'メガネ' }, { text: '腕時計' },
-  { text: '目覚まし時計' }, { text: '電卓' }, { text: '印鑑' }, { text: 'クリップ' }, { text: 'ティッシュ' },
+  // 日用品・ガジェット
+  { text: 'スマホ' }, { text: 'パソコン' }, { text: '鉛筆' }, { text: '消しゴム' }, { text: 'ハサミ' },
+  { text: 'ノート' }, { text: 'カバン' }, { text: '財布' }, { text: '鍵' }, { text: 'メガネ' },
+  { text: '腕時計' }, { text: '目覚まし時計' }, { text: '電卓' }, { text: 'ハンコ' }, { text: 'ティッシュ' },
+  // 家具・家電
   { text: '椅子' }, { text: 'ソファ' }, { text: 'ベッド' }, { text: 'テレビ' }, { text: '冷蔵庫' },
   { text: '洗濯機' }, { text: '電子レンジ' }, { text: '扇風機' }, { text: '掃除機' }, { text: '電球' },
-  { text: 'トイレットペーパー' }, { text: '歯ブラシ' }, { text: 'ドライヤー' },
+  { text: 'トイレ' }, { text: 'ドライヤー' },
+  // 食べ物
   { text: 'ハンバーガー' }, { text: 'おにぎり' }, { text: 'ラーメン' }, { text: '寿司' }, { text: 'ピザ' },
-  { text: 'ケーキ' }, { text: 'ドーナツ' }, { text: 'アイスクリーム' }, { text: 'バナナ' }, { text: 'リンゴ' },
-  { text: '目玉焼き' }, { text: 'コーヒーカップ' }, { text: 'ビールジョッキ' },
-  { text: '自転車' }, { text: '自動車' }, { text: 'パトカー' }, { text: '救急車' }, { text: '消防車' },
-  { text: 'トラック' }, { text: 'バス' }, { text: '電車' }, { text: '新幹線' }, { text: '飛行機' },
-  { text: 'ヘリコプター' }, { text: 'ロケット' }, { text: 'UFO' }, { text: '潜水艦' }, { text: '船' },
-  { text: '宝箱' }, { text: '爆弾' }, { text: 'プレゼント箱' }, { text: 'サッカーボール' }, { text: 'バット' },
-  { text: 'トロフィー' }, { text: '王冠' }, { text: 'ダイヤモンド' }, { text: 'うんち' }, { text: '土偶' }
+  { text: 'ショートケーキ' }, { text: 'ドーナツ' }, { text: 'ソフトクリーム' }, { text: 'バナナ' }, { text: 'リンゴ' },
+  { text: '目玉焼き' }, { text: 'コーヒー' }, { text: 'ビール' },
+  // 乗り物・その他
+  { text: '自転車' }, { text: '車' }, { text: 'パトカー' }, { text: '消防車' }, { text: 'トラック' },
+  { text: 'バス' }, { text: '電車' }, { text: '新幹線' }, { text: '飛行機' }, { text: 'ヘリコプター' },
+  { text: 'ロケット' }, { text: 'UFO' }, { text: '船' }, { text: '潜水艦' },
+  { text: '宝箱' }, { text: '爆弾' }, { text: 'プレゼント' }, { text: 'サッカーボール' }, { text: 'バット' },
+  { text: 'トロフィー' }, { text: '王冠' }, { text: '宝石' }, { text: 'うんち' }, { text: '信号機' }
 ];
 
 interface Theme {
@@ -140,7 +142,8 @@ export default function PonchieDojo() {
   const getRandom = (arr: WordPart[]) => arr[Math.floor(Math.random() * arr.length)];
 
   const generateTheme = useCallback((): Theme => {
-    const mode = Math.random() > 0.4 ? 'situation' : 'object'; 
+    // 50%の確率でシチュエーション（誰が＋何してる）、50%でモノ（どんな＋モノ）
+    const mode = Math.random() > 0.5 ? 'situation' : 'object'; 
     let mainText = '';
     let subText = '';
 
@@ -149,11 +152,15 @@ export default function PonchieDojo() {
         const ctx = getRandom(CONTEXTS);
         const act = getRandom(ACTIONS);
         const sub = getRandom(SUBJECTS);
+        
+        // シチュエーションモード: 「宇宙で」「走っている」「猫」
         mainText = `${sub.text}が${act.text}`;
         subText = `${ctx.text}`;
       } else {
+        // オブジェクトモード: 「巨大な」「スマホ」
         const ctx = getRandom(CONTEXTS);
         const obj = getRandom(OBJECTS);
+        
         mainText = obj.text;
         subText = `${ctx.text}`;
       }
@@ -351,25 +358,22 @@ export default function PonchieDojo() {
           </div>
           <div className="shrink-0 w-20 md:w-32 bg-white rounded-xl flex flex-col items-center justify-center border-4 h-full shadow border-stone-800 text-stone-800">
              <Clock className="w-5 h-5 md:w-8 md:h-8 mb-0.5" />
-             <span className={`text-2xl md:text-4xl font-black font-mono leading-none ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : ''}`}>{timeLeft}</span>
+             {/* tabular-numsで等幅数字にし、keyで再描画を強制して残像を防ぐ */}
+             <span key={timeLeft} className={`text-2xl md:text-4xl font-black font-mono leading-none tabular-nums ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : ''}`}>{timeLeft}</span>
           </div>
         </div>
 
         {/* メインエリア */}
         <div className="flex-1 w-full flex flex-col md:flex-row items-center justify-center gap-4 p-4 min-h-0">
           
-          {/* キャンバスコンテナ：正方形を維持しつつ最大化 */}
+          {/* キャンバスコンテナ */}
           <div className="relative flex-1 w-full h-full flex items-center justify-center min-h-0 min-w-0">
-             {/* aspect-square: 正方形を維持
-                w-full md:w-auto md:h-full: スマホ(縦)なら幅いっぱい、タブレット(横)なら高さいっぱい
-                max-w-full max-h-full: 親要素からはみ出さない
-             */}
              <div className="aspect-square max-h-full max-w-full w-full md:w-auto md:h-full bg-white rounded-xl shadow-xl overflow-hidden border-2 border-stone-300 relative cursor-crosshair">
                 <canvas ref={canvasRef} onPointerDown={startDrawing} onPointerMove={draw} onPointerUp={stopDrawing} onPointerOut={stopDrawing} className="w-full h-full touch-none select-none" style={{ touchAction: 'none' }} />
              </div>
           </div>
 
-          {/* ツールバー：レスポンシブ配置 */}
+          {/* ツールバー */}
           <div className="shrink-0 bg-stone-800 p-2 md:p-3 rounded-2xl shadow-xl border border-stone-600 flex flex-row md:flex-col gap-3 items-center justify-center">
             <button onClick={() => setTool('pen')} className={`p-3 md:p-4 rounded-xl transition-all ${tool === 'pen' ? 'bg-white text-black scale-110' : 'text-stone-400 hover:text-white hover:bg-stone-700'}`}><Pencil className="w-6 h-6" /></button>
             <button onClick={() => setTool('eraser')} className={`p-3 md:p-4 rounded-xl transition-all ${tool === 'eraser' ? 'bg-white text-black scale-110' : 'text-stone-400 hover:text-white hover:bg-stone-700'}`}><Eraser className="w-6 h-6" /></button>
